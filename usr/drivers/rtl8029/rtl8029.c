@@ -55,10 +55,10 @@ static rtl8029as_t      rtl;
 /// This buffers the card's MAC address upon card reset
 static uint8_t          rtl8029_mac[6];
 
-// driver will initially copy the packet here. 
+// driver will initially copy the packet here.
 static uint8_t packetbuf[PACKET_SIZE];
 
-// the length of packet copied into packetbuf 
+// the length of packet copied into packetbuf
 static uint16_t packet_length;
 
 /**
@@ -72,7 +72,7 @@ static void page_select(uint8_t page)
 {
     /// The currently selected register page
     static uint8_t current_page = -1;
-    if (current_page != page) { 
+    if (current_page != page) {
 	rtl8029as_cr_t cr = rtl8029as_cr_default;
 	cr = rtl8029as_cr_sta_insert(cr, 1);
 	cr = rtl8029as_cr_rd_insert(cr, rtl8029as_acrdma);
@@ -124,7 +124,7 @@ static void read_mem(uint8_t *dst, int src, int amount)
     rtl8029as_cr_t cr = rtl8029as_cr_default;
     cr = rtl8029as_cr_sta_insert(cr, 1);
     cr = rtl8029as_cr_rd_insert(cr, rtl8029as_rrd);
-    rtl8029as_cr_wr(&rtl, cr);         
+    rtl8029as_cr_wr(&rtl, cr);
 
     // Read PIO 32-bit
     for(i = 0; i < amount - remain; i += 4, d++) {
@@ -166,7 +166,7 @@ static inline void write_page(uint8_t page, struct client_closure *cl)
     for (int index = 0; index < cl->rtpbuf; index++) {
 	/*
 	  RTL8029_DEBUG("sending %dth rx_pbuf\n", index);
-	  
+
 	  RTL8029_DEBUG("pa %p va %p offset %lu\n",
 	  (void *)cl->buffer_ptr->pa, cl->buffer_ptr->va, cl->pbuf[index].offset);
 	*/
@@ -176,10 +176,10 @@ static inline void write_page(uint8_t page, struct client_closure *cl)
         uint8_t *src = (uint8_t *) ((uint64_t)cl->buffer_ptr->va + cl->pbuf[index].offset);
 #endif
         pbuf_len = cl->pbuf[index].len;
-	
+
         uint32_t i = 0;
-	
-        // write bytes until we reach word alignment in the card's memory 
+
+        // write bytes until we reach word alignment in the card's memory
         for (i = 0; dst % sizeof(uint32_t) != 0; i++, dst++) {
 	    // RTL8029_DEBUG("sending byte %d\n", i);
             rtl8029as_rdma8_wr(&rtl, src[i]);
@@ -199,7 +199,7 @@ static inline void write_page(uint8_t page, struct client_closure *cl)
             rtl8029as_rdma8_wr(&rtl, src[i]);
         }
     } // end for : for each pbuf in the list (for single packet)
-    
+
     // RTL8029_DEBUG("stopping the write\n");
 
     // Stop write
@@ -262,7 +262,11 @@ static errval_t rtl8029_send_ethernet_packet_fn(struct client_closure *cl)
 
     // Tell the client we sent them!!!
     for (int i = 0; i < cl->rtpbuf; i++) {
-        notify_client_free_tx(cl->app_connection, cl->pbuf[i].client_data);
+        notify_client_free_tx(cl->app_connection,
+                cl->pbuf[i].client_data,
+                cl->pbuf[i].spp_index,
+                cl->pbuf[i].ts,
+                RTL_TX_RING_SIZE, 0);
     }
 
     return SYS_ERR_OK;
@@ -426,11 +430,11 @@ static int rtl8029_initialize_card(void)
     rtl8029as_reset_rd(&rtl);
 
     // Identify rtl8029as
-    if( rtl8029as_chipid_rd(&rtl,0) == 'P' 
+    if( rtl8029as_chipid_rd(&rtl,0) == 'P'
 	&& rtl8029as_chipid_rd(&rtl,1) == 'C') {
         printf("rtl8029as identified\n");
     } else {
-        printf("This is not a recognized rtl8029as: ID is %02x:%02x!\n", 
+        printf("This is not a recognized rtl8029as: ID is %02x:%02x!\n",
 	       rtl8029as_chipid_rd(&rtl,0),
 	       rtl8029as_chipid_rd(&rtl,1) );
         return -1;
@@ -438,13 +442,15 @@ static int rtl8029_initialize_card(void)
     printf("RTL base is %d\n",rtl.base);
 
     // Read my MAC address
-    for(int i=0; i < 6; i++) { 
+    for(int i=0; i < 6; i++) {
 	rtl8029_mac[i] = rtl8029as_par_rd(&rtl,i);
     }
     printf("My MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
            rtl8029_mac[0], rtl8029_mac[1], rtl8029_mac[2], rtl8029_mac[3],
            rtl8029_mac[4], rtl8029_mac[5]);
 
+    // Start the card
+    page_select(rtl8029as_ne2000p0);
     rtl8029as_cr_t cr = rtl8029as_cr_rd(&rtl);
     cr = rtl8029as_cr_stp_insert(cr, 0);
     rtl8029as_cr_wr(&rtl, cr);
@@ -504,6 +510,11 @@ static void get_mac_address_fn(uint8_t *mac)
     memcpy(mac, rtl8029_mac, 6);
 }
 
+static bool handle_free_TX_slot_fn(void)
+{
+    return false;
+}
+
 static void rtl8029_init(void)
 {
 	/* FIXME: use correct name, and make apps and netd
@@ -515,7 +526,8 @@ static void rtl8029_init(void)
 	RTL8029_DEBUG("Done with hardware init\n");
 
 	ethersrv_init(service_name, get_mac_address_fn,
-			rtl8029_send_ethernet_packet_fn);
+            rtl8029_send_ethernet_packet_fn,
+            rtl_tx_slots_count_fn, handle_free_TX_slot_fn );
 }
 
 /**
