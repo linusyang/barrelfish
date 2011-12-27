@@ -16,7 +16,7 @@
 		      		       "dist", "vfs", "nfs", "lwip",
                                        "contmng", "procon", "hashtable"],
   		      flounderDefs = [ "monitor", "monitor_blocking" ],
-                      flounderExtraBindings = [ ("monitor_blocking",["rpcclient"]) ],
+                      flounderExtraDefs = [ ("monitor_blocking",["rpcclient"]) ],
   		      flounderBindings = [ "spawn" ]
                     }
 ]
