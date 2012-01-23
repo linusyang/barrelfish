@@ -89,6 +89,8 @@ extern "C" {
     int is_lwip_loaded(void);
     uint64_t lwip_packet_drop_count(void);
 
+uint64_t wrapper_perform_lwip_work(void);
+
 void lwip_benchmark_control(int connection, uint8_t state, uint64_t trigger,
         uint64_t cl);
 uint8_t lwip_driver_benchmark_state(int direction, uint64_t *delta,
@@ -114,11 +116,22 @@ enum Recorded_Events {
     TX_A_SP_RN_T,
     TX_SND_PKT_C,
     TX_SND_PKT_S,
+/*
+    RPC_RECV_T,
+    RPC_CALLBACK_T,
+    RPC_RECV_OUT_T,
+*/
+    RPC_CALL_T,
+    NFS_READCB_T,
+    NFS_READ_T,
+    NFS_READ_1_T,
+    NFS_READ_w_T,
     RECORDED_EVENTS_COUNT  // MUST BE THE LAST ELEMENT!!
 };
 
 extern struct netbench_details *nb;
 void lwip_print_interesting_stats(void);
+void lwip_record_event_simple(uint8_t event_type, uint64_t ts);
 
 #ifdef __cplusplus
 }

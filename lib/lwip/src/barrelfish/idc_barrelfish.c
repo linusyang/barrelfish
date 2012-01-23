@@ -779,7 +779,7 @@ void idc_benchmark_control(int connection, uint8_t state, uint64_t trigger,
      printf("idc_debug_status:  called with status %x [%"PRIu64"]\n",
      state, trigger);
 
-    new_debug = state;
+//    new_debug = state;
     struct q_entry entry;
     benchmark_mode = state;
     if (state == 1) {
@@ -921,7 +921,7 @@ static void benchmark_control_response(struct ether_binding *b, uint8_t state,
 
 bool lwip_in_packet_received = false;
 
-static uint32_t handle_incoming_packets(struct ether_binding *b)
+static uint32_t handle_incoming_packets(void)
 {
 
     struct client_closure_NC *ccnc = (struct client_closure_NC *)
@@ -1004,6 +1004,16 @@ static uint32_t handle_incoming_packets(struct ether_binding *b)
     return count;
 } // end function: handle_incoming_packets
 
+
+// Does all the work related to incoming and outgoing packets
+uint64_t perform_lwip_work(void)
+{
+    handle_incoming_packets();
+    sp_process_tx_done(false);
+    return 0;
+} // end function: perform_lwip_work
+
+
 static void sp_notification_from_driver(struct ether_binding *b, uint64_t type,
         uint64_t rts)
 {
@@ -1022,8 +1032,7 @@ static void sp_notification_from_driver(struct ether_binding *b, uint64_t type,
         netbench_record_event_simple(nb, TX_A_SP_RN_CS, rts);
     }
 
-    handle_incoming_packets(b);
-    sp_process_tx_done(false);
+    perform_lwip_work();
 
     if (benchmark_mode > 0) {
         netbench_record_event_simple(nb, TX_A_SP_RN_T, ts);
