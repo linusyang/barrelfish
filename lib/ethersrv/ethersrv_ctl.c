@@ -744,9 +744,6 @@ static void pause_filter(struct ether_control_binding *cc, uint64_t filter_id,
             assert(b != NULL);
             struct client_closure *cl = (struct client_closure *)b->st;
             assert(cl != NULL);
-            if (cl->debug_state == 4) {
-                ++cl->in_paused_pkts;
-            }
             copy_packet_to_user(rx_filter->buffer, bd->pkt_data, bd->pkt_len);
         }
     }
@@ -864,11 +861,6 @@ static void send_arp_to_all(void *data, uint64_t len)
         assert(b != NULL);
         cl = (struct client_closure *) b->st;
         assert(cl != NULL);
-        cl->filter_matched = 0;
-        if (cl->debug_state == 4) {
-            ++cl->in_arp_pkts;
-        }
-
         copy_packet_to_user(head->buffer, data, len);
         head = head->next;
     }
@@ -953,6 +945,11 @@ static bool handle_application_packet(void *packet, size_t len)
         return false;
     }
 
+#if TRACE_ONLY_SUB_NNET
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVAPPFDONE,
+                (uint32_t) ((uintptr_t) packet));
+#endif // TRACE_ONLY_SUB_NNET
+
 
     // Matching filter found, sending packet to application
     struct buffer_descriptor *buffer = filter->buffer;
@@ -968,7 +965,6 @@ static bool handle_application_packet(void *packet, size_t len)
 
     if (cl->debug_state == 3) {
         // Trigger to start the recording the stats
-        assert(cl->in_success == 0);
         ts = rdtsc();
         cl->start_ts = ts;
         cl->debug_state = 4;
@@ -980,7 +976,6 @@ static bool handle_application_packet(void *packet, size_t len)
         g_cl = cl;
         trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_START, 0);
     }
-    cl->filter_matched = 1;
 
     if (filter->paused) {
         // Packet belongs to paused filter
@@ -996,6 +991,11 @@ static bool handle_application_packet(void *packet, size_t len)
     if (cl->debug_state == 4) {
         ++cl->in_filter_matched;
     }
+
+#if TRACE_ONLY_SUB_NNET
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVAPPCSTART,
+                (uint32_t) ((uintptr_t) packet));
+#endif // TRACE_ONLY_SUB_NNET
 
     bool ret = copy_packet_to_user(buffer, packet, len);
     if (ret) {
@@ -1082,9 +1082,6 @@ static bool handle_netd_packet(void *packet, size_t len)
 
     struct client_closure *cl = (struct client_closure *)b->st;
     assert(cl != NULL);
-    if (cl->debug_state == 4) {
-        ++cl->in_netd_pkts;
-    }
     if (copy_packet_to_user(buffer, packet, len) == false) {
         ETHERSRV_DEBUG("Copy packet to userspace failed\n");
     }
@@ -1099,6 +1096,11 @@ void process_received_packet(void *pkt_data, size_t pkt_len)
     uint32_t pkt_location = (uint32_t) ((uintptr_t) pkt_data);
     trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NI_A, pkt_location);
 #endif // TRACE_ETHERSRV_MODE
+#if TRACE_ONLY_SUB_NNET
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVSEE,
+                    (uint32_t) ((uintptr_t) pkt_data));
+#endif // TRACE_ONLY_SUB_NNET
+
 
     // check for fragmented packet
     if (handle_fragmented_packet(pkt_data, pkt_len)) {
@@ -1106,6 +1108,11 @@ void process_received_packet(void *pkt_data, size_t pkt_len)
 //        printf("fragmented packet..\n");
         return;
     }
+
+#if TRACE_ONLY_SUB_NNET
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVFRGDONE,
+                    (uint32_t) ((uintptr_t) pkt_data));
+#endif // TRACE_ONLY_SUB_NNET
 
     // check for application specific packet
     if (handle_application_packet(pkt_data, pkt_len)) {

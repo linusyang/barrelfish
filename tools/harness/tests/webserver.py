@@ -50,7 +50,7 @@ class WebCommon(TestCommon):
                                    "cardname=%s"%cardName])
         nfsip = socket.gethostbyname(siteconfig.get('WEBSERVER_NFS_HOST'))
         modules.add_module("webserver", ["core=%d" % machine.get_coreids()[3],
-				cardName, nfsip, 
+				cardName, nfsip,
                                          siteconfig.get('WEBSERVER_NFS_PATH')])
         return modules
 
