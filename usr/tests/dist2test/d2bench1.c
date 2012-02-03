@@ -26,6 +26,9 @@
 
 int main(int argc, char** argv)
 {
+	int clients = atoi(argv[1]);
+	assert(clients > 0);
+
     dist_init();
     bench_init();
 
@@ -36,24 +39,31 @@ int main(int argc, char** argv)
 
     struct dist2_rpc_client* cl = get_dist_rpc_client();
     assert(cl != NULL);
-    cycles_t time0 = bench_tsc();
-    cycles_t time1 = bench_tsc();
-    size_t cur = 0;
+    errval_t err = dist_set("rec { attr: '%s' }", payload);
+    assert(err_is_ok(err));
+
+    char* barrier = NULL;
+    err = dist_barrier_enter("d2bench1", &barrier, clients);
+    assert(err_is_ok(err));
+
     char* record;
     errval_t error_code;
     cycles_t server;
     uint8_t busy;
 
-    while ( bench_tsc_to_ms(time1-time0) < EXP_RUNTIME_MS ) {
-        cl->vtbl.get(cl, "rec", NOP_TRIGGER, &record, &error_code, &server, &busy);
-        cur++;
-        if(cur % 5000) {
-        	time1 = bench_tsc();
-        }
-        free(record);
+    if (strcmp(argv[2], "get") == 0) {
+		while ( !stopped ) {
+			cl->vtbl.get(cl, "rec", NOP_TRIGGER, &record, &error_code, &server, &busy);
+		}
     }
-    printf("GET Operations per second: %lu", cur / (EXP_RUNTIME_MS/1000) );
-
+    else if (strcmp(argv[2], "set") == 0) {
+		while ( !stopped ) {
+			//cl->vtbl.set(cl, "rec", NOP_TRIGGER, &record, &error_code, &server, &busy);
+		}
+    }
+    else {
+    	assert(!"Invalid argv[2]");
+    }
 
     return EXIT_SUCCESS;
 }
