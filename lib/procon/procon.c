@@ -173,19 +173,19 @@ bool sp_queue_full(struct shared_pool_private *spp)
 
 
 // Checks if given index is peekable or not
-bool sp_read_peekable_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_read_peekable_index(struct shared_pool_private *spp, uint64_t idx)
 {
     sp_reload_regs(spp);
-    return sp_c_between(spp->c_read_id, index, spp->c_write_id, spp->c_size);
+    return sp_c_between(spp->c_read_id, idx, spp->c_write_id, spp->c_size);
 } // end function: sp_read_peekable_index
 
 
 // Checks if given index is settable for not for read_reg
-bool sp_validate_read_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_validate_read_index(struct shared_pool_private *spp, uint64_t idx)
 {
     sp_reload_regs(spp);
     uint64_t upper_limit = (spp->c_write_id + 1) % spp->c_size;
-    return sp_c_between(spp->c_read_id, index, upper_limit, spp->c_size);
+    return sp_c_between(spp->c_read_id, idx, upper_limit, spp->c_size);
 }
 
 
@@ -197,12 +197,12 @@ uint64_t sp_queue_elements_count(struct shared_pool_private *spp)
 } // end function: sp_queue_elements_count
 
 // Checks if given index is write peekable or not
-bool sp_write_peekable_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_write_peekable_index(struct shared_pool_private *spp, uint64_t idx)
 {
     sp_reload_regs(spp);
 
     // Trivial case: index bigger than queue size
-    if (index >= spp->c_size){
+    if (idx >= spp->c_size){
         return false;
     }
 
@@ -211,14 +211,14 @@ bool sp_write_peekable_index(struct shared_pool_private *spp, uint64_t index)
         return true;
     }
 
-    return sp_c_between(spp->c_write_id, index, spp->c_read_id, spp->c_size);
+    return sp_c_between(spp->c_write_id, idx, spp->c_read_id, spp->c_size);
 } // end function: sp_write_peekable_index
 
 
 // Checks if given index is valid for write or not
-bool sp_validate_write_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_validate_write_index(struct shared_pool_private *spp, uint64_t idx)
 {
-    return sp_write_peekable_index(spp, index);
+    return sp_write_peekable_index(spp, idx);
 } // end function: sp_validate_write_index
 
 
@@ -435,24 +435,24 @@ void sp_copy_slot_data(struct slot_data *d, struct slot_data *s)
 }
 
 void sp_copy_slot_data_from_index(struct shared_pool_private *spp,
-        uint64_t index, struct slot_data *d)
+        uint64_t idx, struct slot_data *d)
 {
-    sp_copy_slot_data(d, &spp->sp->slot_list[index].d);
+    sp_copy_slot_data(d, &spp->sp->slot_list[idx].d);
 } // end function: sp_copy_slot_data_index
 
 
 // Set the value of read index
 // To be used with sp_read_peek_slot
-bool sp_set_read_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_set_read_index(struct shared_pool_private *spp, uint64_t idx)
 {
 
     sp_reload_regs(spp);
     // Trivial case:
-    if (spp->c_read_id == index) {
+    if (spp->c_read_id == idx) {
         return true;
     }
 
-    if (!sp_validate_read_index(spp, index)) {
+    if (!sp_validate_read_index(spp, idx)) {
         // The value in index is invalid!
         return false;
     }
@@ -465,7 +465,7 @@ bool sp_set_read_index(struct shared_pool_private *spp, uint64_t index)
         ++spp->notify_other_side;
     }
 
-    sp_atomic_set_reg(&spp->sp->read_reg, index);
+    sp_atomic_set_reg(&spp->sp->read_reg, idx);
     sp_reload_regs(spp);
 
 //    spp->ghost_read_id = spp->c_read_id;
@@ -484,16 +484,16 @@ bool sp_set_read_index(struct shared_pool_private *spp, uint64_t index)
 
 // Set the value of write index
 // To be used with sp_ghost_produce_slot
-bool sp_set_write_index(struct shared_pool_private *spp, uint64_t index)
+bool sp_set_write_index(struct shared_pool_private *spp, uint64_t idx)
 {
     sp_reload_regs(spp);
 
     // Trivial case:
-    if (spp->c_write_id  == index) {
+    if (spp->c_write_id  == idx) {
         return true;
     }
 
-    if (!sp_validate_write_index(spp, index)) {
+    if (!sp_validate_write_index(spp, idx)) {
         // The value in index is invalid!
         return false;
     }
@@ -506,7 +506,7 @@ bool sp_set_write_index(struct shared_pool_private *spp, uint64_t index)
         ++spp->notify_other_side;
     }
 
-    sp_atomic_set_reg(&spp->sp->write_reg, index);
+    sp_atomic_set_reg(&spp->sp->write_reg, idx);
     sp_reload_regs(spp);
 //    spp->ghost_write_id = spp->c_write_id;
 
@@ -642,7 +642,7 @@ bool sp_produce_slot(struct shared_pool_private *spp, struct slot_data *d)
 // Add data into free slots, but don't increment write index
 // This allows adding multiple slots and then atomically increment write index
 bool sp_ghost_produce_slot(struct shared_pool_private *spp,
-        struct slot_data *d, uint64_t index)
+        struct slot_data *d, uint64_t idx)
 {
     sp_reload_regs(spp);
 
@@ -655,23 +655,23 @@ bool sp_ghost_produce_slot(struct shared_pool_private *spp,
     }
 
     // Check if the requested peak is valid or not
-    if (!sp_write_peekable_index(spp, index))
+    if (!sp_write_peekable_index(spp, idx))
     {
         return false;
     }
 
-    sp_copy_slot_data(&spp->sp->slot_list[index].d, d);
+    sp_copy_slot_data(&spp->sp->slot_list[idx].d, d);
 #if 0
 #if !defined(__scc__) && !defined(__i386__)
-        cache_flush_range(&spp->sp->slot_list[index], SLOT_SIZE);
+        cache_flush_range(&spp->sp->slot_list[idx], SLOT_SIZE);
 #endif // !defined(__scc__) && !defined(__i386__)
 #endif // 0
     // Incrementing write pointer
-    spp->ghost_write_id = (index + 1) % spp->c_size;
+    spp->ghost_write_id = (idx + 1) % spp->c_size;
     /*
     printf("ghost produce slot, producing for %"PRIu64", val %"PRIu64"\n",
-            index, d->client_data);
-   sp_print_slot(&spp->sp->slot_list[index].d);
+            idx, d->client_data);
+   sp_print_slot(&spp->sp->slot_list[idx].d);
    */
     return true;
 } // end function: sp_produce_slot

@@ -7,6 +7,10 @@
 #include <assert.h>
 #include <stdio.h>
 
+#ifndef NDEBUG
+#define NDEBUG
+#endif
+
 #ifndef MIN
 #define MIN(a, b) ((a)<(b)?(a):(b))
 #endif
@@ -92,6 +96,13 @@ mdb_dump(struct cte *cte, int indent)
     // Print a tree with root on the left, the smallest element at the top and the
     // largest at the bottom.
 
+    /* make an indent buffer */
+    char indent_buff[indent+2];
+    for (int i=0; i < indent+1; i++) {
+        indent_buff[i]='\t';
+    }
+    indent_buff[indent+1] = '\0';
+
     if (!cte) {
         printf("NULL{}\n");
         return;
@@ -101,26 +112,24 @@ mdb_dump(struct cte *cte, int indent)
 
     if (node->left) {
         if (node->left == cte) {
-            for (int i = -1; i < indent; i++) { putchar('\t'); }
-            printf("SELF!!!!\n");
+            printf("%sSELF!!!!\n", indent_buff);
         }
         else {
             mdb_dump(node->left, indent+1);
         }
     }
 
-    for (int i = 0; i < indent; i++) { putchar('\t'); }
-    printf("%p{left=%p,right=%p,end=0x%08"PRIxGENPADDR",end_root=%"PRIu8","
+    printf("%s%p{left=%p,right=%p,end=0x%08"PRIxGENPADDR",end_root=%"PRIu8","
             "level=%"PRIu8",address=0x%08"PRIxGENPADDR",size=0x%08"PRIx64","
             "type=%"PRIu8",remote_rels=%d}\n",
+            indent_buff,
             cte, node->left, node->right, node->end, node->end_root,
             node->level, get_address(C(cte)), get_size(C(cte)),
             (uint8_t)C(cte)->type, N(cte)->remote_relations);
 
     if (node->right) {
         if (node->right == cte) {
-            for (int i = -1; i < indent; i++) { putchar('\t'); }
-            printf("SELF!!!!\n");
+            printf("%sSELF!!!!\n", indent_buff);
         }
         else {
             mdb_dump(node->right, indent+1);

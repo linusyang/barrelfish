@@ -31,6 +31,11 @@ architectures :: [String]
 cOptFlags :: String
 cOptFlags = "-g -O2"
 
+-- Selects which libc to compile with, "freec" or "newlib"
+libc :: String
+libc = "freec"
+-- libc = "newlib"
+
 -- Use a frame pointer
 use_fp :: Bool
 use_fp = True
@@ -228,8 +233,14 @@ defines = [ Str ("-D" ++ d) | d <- [
              if pse_paging then "CONFIG_PSE" else "",
              if nxe_paging then "CONFIG_NXE" else "",
              if rck_emu then "RCK_EMU" else "",
+             if libc == "freec" then "FREEC" else "NEWLIB",
              if oneshot_timer then "CONFIG_ONESHOT_TIMER" else ""
              ], d /= "" ]
+
+-- Sets the include path for the libc
+libcInc :: String
+libcInc = if libc == "freec" then "/include/freec"
+          else "/lib/newlib/newlib/libc/include"
 
 -- some defines depend on the architecture/compile options
 arch_defines :: Options -> [RuleToken]

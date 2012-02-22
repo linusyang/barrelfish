@@ -134,7 +134,7 @@
 >           toFofType LPAddr   = typedef uint64T "lpaddr_t"
 >           toFofType GenVAddr = typedef uint64T "genvaddr_t"
 >           toFofType LVAddr   = typedef uint64T "lvaddr_t"
->           toFofType CAddr = typedef uint32T "caddr_t"
+>           toFofType CAddr = typedef uint32T "capaddr_t"
 >           toFofType (Pointer s) = typedef uint64T (s ++ "*")
 >           toFofType CapRights = capRightsT
 >           toFofType CoreId = typedef uint8T "coreid_t"

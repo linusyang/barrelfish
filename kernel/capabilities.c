@@ -560,7 +560,7 @@ static errval_t caps_create(enum objtype type, lpaddr_t lpaddr, uint8_t bits,
  *
  * \bug Handle rights
  */
-errval_t caps_lookup_slot(struct capability *cnode_cap, caddr_t cptr,
+errval_t caps_lookup_slot(struct capability *cnode_cap, capaddr_t cptr,
                           uint8_t vbits, struct cte **ret, CapRights rights)
 {
     /* parameter checking */
@@ -596,11 +596,12 @@ errval_t caps_lookup_slot(struct capability *cnode_cap, caddr_t cptr,
     }
 
     /* Guard-check (bit-mask of guard in cptr must match guard in cnode cap) */
-    caddr_t cptr_guard = (cptr >> (vbits - cnode_cap->u.cnode.guard_size))
+    capaddr_t cptr_guard = (cptr >> (vbits - cnode_cap->u.cnode.guard_size))
         & MASK(cnode_cap->u.cnode.guard_size);
     if (cptr_guard != cnode_cap->u.cnode.guard) {
         debug(SUBSYS_CAPS, "caps_lookup_slot: guard check failed\n"
-              "Computed guard = %x, Cnode guard = %x, bits = %u\n",
+              "Computed guard = %"PRIuCADDR", "
+              "Cnode guard = %"PRIxCADDR", bits = %u\n",
               cptr_guard, cnode_cap->u.cnode.guard,
               cnode_cap->u.cnode.guard_size);
         return SYS_ERR_GUARD_MISMATCH;
@@ -639,7 +640,7 @@ errval_t caps_lookup_slot(struct capability *cnode_cap, caddr_t cptr,
 /**
  * Wrapper for caps_lookup_slot returning capability instead of cte.
  */
-errval_t caps_lookup_cap(struct capability *cnode_cap, caddr_t cptr,
+errval_t caps_lookup_cap(struct capability *cnode_cap, capaddr_t cptr,
                          uint8_t vbits, struct capability **ret, CapRights rights)
 {
     struct cte *ret_cte;
@@ -657,7 +658,7 @@ errval_t caps_lookup_cap(struct capability *cnode_cap, caddr_t cptr,
  * Used when sending capabilities across cores. The metadata is sent across
  * cores and the receiving monitor can create the new capability on its core.
  */
-errval_t caps_create_from_existing(struct capability *root, caddr_t cnode_cptr,
+errval_t caps_create_from_existing(struct capability *root, capaddr_t cnode_cptr,
                                    int cnode_vbits, cslot_t dest_slot,
                                    struct capability *src)
 {

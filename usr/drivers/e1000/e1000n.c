@@ -414,7 +414,7 @@ static bool handle_next_received_packet(void)
         }
         total_rx_datasize += len;
 
-        // E1000N_DEBUG("packet received of size %zu..\n", len);
+        // E1000N_DEBUG("packet received of size %lu..\n", len);
 
         buffer_address = (void*)rxd->rx_read_format.buffer_address;
         data = (buffer_address - internal_memory_pa) + internal_memory_va;

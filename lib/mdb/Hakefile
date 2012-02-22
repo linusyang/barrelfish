@@ -36,7 +36,7 @@
       in Rules [
         compileCFiles opts csrcs,
         compileGeneratedCFile opts predicatesFile,
-        staticLibrary opts (target args) (objectFiles)
+        staticLibrary opts (target args) (objectFiles) []
       ]
   in
     build Args.defaultArgs {
