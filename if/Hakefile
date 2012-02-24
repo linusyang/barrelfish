@@ -36,6 +36,8 @@
                "mouse",
                "nameservice",
                "netd",
+               "acpi",
+               "ioapic",
                "pci",
                "ping_pong",
                "pixels",
@@ -71,7 +73,6 @@
                "ping_pong",
                "mem",
                "xmplthc",
-               "dist2",
-               "dist_event" ],
+               "dist2" ],
              arch <- allArchitectures
 ]

@@ -76,7 +76,8 @@ int main(int argc, char**argv)
     execute_string("set_flag(print_depth,100).");
 
     if(disp_get_core_id() == 0) {
-        //execute_string("set_flag(gc, off).");
+        debug_printf("dist_server_init\n");
+        execute_string("set_flag(gc, off).");
         //execute_string("set_flag(gc_policy, fixed).");
         //execute_string("set_flat(gc_interval, 536870912)."); // 512 mb
         //execute_string("set_flag(gc_interval_dict, 10000).");
@@ -89,7 +90,6 @@ int main(int argc, char**argv)
         execute_string("[objects3].");
         execute_string("[pubsub3].");
         execute_string("[bindings].");
-        execute_string("[pci_db].");
         dident e = ec_did("eclipse", 0);
         //ec_external(ec_did("notify_client", 2), p_notify_client, e);
         ec_external(ec_did("trigger_watch", 6), p_trigger_watch, e);
