@@ -79,6 +79,7 @@ ldCxxFlags arch =
 
 stdLibs arch = 
     [ In InstallTree arch "/lib/libbarrelfish.a",
+      In InstallTree arch "/lib/libdist_parser.a", -- dist_read() in nameservice_client.c
       In InstallTree arch "/errors/errno.o",
       In InstallTree arch "/lib/libc.a",
       In InstallTree arch "/lib/crtend.o" ,

@@ -47,6 +47,73 @@ static int cmpstringp(const void *p1, const void *p2)
 }
 
 /**
+ * \brief Parses output from get_names call and stores it in an array.
+ *
+ * \note Use dist_free_names() to free names array.
+ *
+ * \param[in] input Comma separated string of names
+ * \param[out] names Array of strings containing all names
+ * \param[out] len Size of array.
+ *
+ * \retval LIB_ERR_MALLOC_FAIL
+ * \retval SYS_ERR_OK
+ */
+errval_t dist_parse_names(char* input, char*** names, size_t* len)
+{
+    errval_t err = SYS_ERR_OK;
+
+    char *p = mystrdup(input);
+    if (p == NULL) {
+        err = LIB_ERR_MALLOC_FAIL;
+        goto out;
+    }
+
+    // first get the number of elements
+    char* saveptr = NULL;
+    size_t i;
+    char* tok = p; // just make sure it's non-null
+    char* first = p;
+    for (i = 0; tok != NULL; i++, first = NULL) {
+        tok = strtok(first, ",");
+    }
+    assert(p != NULL);
+    free(p);
+    p = NULL;
+    *len = --i;
+
+    *names = malloc(sizeof(char*) * i);
+    if (*names == NULL) {
+        *len = 0;
+        err = LIB_ERR_MALLOC_FAIL;
+        goto out;
+    }
+    memset(*names, 0, sizeof(char*) * i);
+
+    // now get the actual elements
+    saveptr = NULL;
+    tok = input; // just make sure it's non-null
+    first = input;
+    for (i = 0; tok != NULL; i++, first = NULL) {
+        tok = strtok(first, ", ");
+        if (tok != NULL) {
+            (*names)[i] = mystrdup(tok);
+            if ((*names)[i] == NULL) {
+                dist_free_names(*names, i);
+                *names = NULL;
+                *len = 0;
+                err = LIB_ERR_MALLOC_FAIL;
+                goto out;
+            }
+        } else {
+            break;
+        }
+    }
+
+out:
+    return err;
+}
+
+/**
  * \brief Retrieve all record names matching a given query.
  *
  * \param[out] names Names of all records matching the query.
@@ -75,73 +142,23 @@ errval_t dist_get_names(char*** names, size_t* len, const char* query, ...)
 
     FORMAT_QUERY(query, args, buf); // buf
 
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
 
     errval_t error_code;
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.get_names(rpc_client, buf, NOP_TRIGGER, &data, // data
-            &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.get_names(cl, buf, NOP_TRIGGER, &data,
+            &tid, &error_code);
     if (err_is_ok(err)) {
         err = error_code;
     }
 
     if (err_is_ok(err)) {
-        char *p = mystrdup(data);
-        if (p == NULL) {
-            err = LIB_ERR_MALLOC_FAIL;
-            goto out;
-        }
-
-        // first get the number of elements
-        char* saveptr = NULL;
-        size_t i;
-        char* tok = p; // just make sure it's non-null
-        char* first = p;
-        for (i = 0; tok != NULL; i++, first = NULL) {
-            tok = strtok(first, ",");
-        }
-        assert(p != NULL);
-        free(p);
-        p = NULL;
-        *len = --i;
-
-        *names = malloc(sizeof(char*) * i);
-        if (*names == NULL) {
-            *len = 0;
-            err = LIB_ERR_MALLOC_FAIL;
-            goto out;
-        }
-        memset(*names, 0, sizeof(char*) * i);
-
-        // now get the actual elements
-        saveptr = NULL;
-        tok = data; // just make sure it's non-null
-        first = data;
-        for (i = 0; tok != NULL; i++, first = NULL) {
-            tok = strtok(first, ", ");
-            if (tok != NULL) {
-                (*names)[i] = mystrdup(tok);
-                if ((*names)[i] == NULL) {
-                    dist_free_names(*names, i);
-                    *names = NULL;
-                    *len = 0;
-                    err = LIB_ERR_MALLOC_FAIL;
-                    goto out;
-                }
-            } else {
-                break;
-            }
-        }
+        err = dist_parse_names(data, names, len);
         qsort(*names, *len, sizeof(char*), cmpstringp);
     }
 
-    // free(*data) on error? can be NULL?
-
-out:
     free(buf);
     free(data);
-
     return err;
 }
 
@@ -183,16 +200,16 @@ errval_t dist_get(char** data, const char* query, ...)
     assert(query != NULL);
     errval_t error_code;
     errval_t err = SYS_ERR_OK;
+    dist2_trigger_id_t tid;
     va_list args;
 
     char* buf = NULL;
     FORMAT_QUERY(query, args, buf);
 
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.get(rpc_client, buf, NOP_TRIGGER, data,
-            &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
+    assert(cl != NULL);
+    err = cl->call_seq.get(cl, buf, NOP_TRIGGER, data,
+            &tid, &error_code);
 
     if (err_is_ok(err)) {
         err = error_code;
@@ -223,14 +240,52 @@ errval_t dist_set(const char* query, ...)
     FORMAT_QUERY(query, args, buf);
 
     // Send to Server
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
-    char* record = NULL;
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
 
+    char* record = NULL;
     errval_t error_code;
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.set(rpc_client, buf, SET_DEFAULT, NOP_TRIGGER, false,
-            &record, &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.set(cl, buf, SET_DEFAULT, NOP_TRIGGER, false,
+            &record, &tid, &error_code);
+    assert(record == NULL);
+
+    if (err_is_ok(err)) {
+        err = error_code;
+    }
+
+    free(buf);
+    return err;
+}
+
+/**
+ * \brief Sets a record.
+ *
+ * \param query The record to set.
+ * \param mode A combination of mode bits (see getset.h).
+ * \param ... Additional arguments to format the query using vsprintf.
+ *
+ * \retval SYS_ERR_OK
+ * \retval DIST2_ERR_NO_RECORD_NAME
+ * \retval DIST2_ERR_PARSER_FAIL
+ * \retval DIST2_ERR_ENGINE_FAIL
+ */
+errval_t dist_mset(dist_mode_t mode, const char* query, ...)
+{
+    assert(query != NULL);
+    errval_t err = SYS_ERR_OK;
+    va_list args;
+
+    char* buf = NULL;
+    FORMAT_QUERY(query, args, buf);
+
+    // Send to Server
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
+
+    char* record = NULL;
+    errval_t error_code;
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.set(cl, buf, mode, NOP_TRIGGER, false,
+            &record, &tid, &error_code);
     assert(record == NULL);
 
     if (err_is_ok(err)) {
@@ -310,13 +365,11 @@ errval_t dist_set_get(dist_mode_t mode, char** record, const char* query, ...)
     FORMAT_QUERY(query, args, buf);
 
     // Send to Server
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
-
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
     errval_t error_code;
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.set(rpc_client, buf, mode, NOP_TRIGGER, true, record,
-            &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.set(cl, buf, mode, NOP_TRIGGER, true, record,
+            &tid, &error_code);
     if (err_is_ok(err)) {
         err = error_code;
     }
@@ -348,13 +401,10 @@ errval_t dist_del(const char* query, ...)
     char* buf = NULL;
     FORMAT_QUERY(query, args, buf);
 
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
     errval_t error_code;
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.del(rpc_client, buf, NOP_TRIGGER, &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
-
-
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.del(cl, buf, NOP_TRIGGER, &tid, &error_code);
     if (err_is_ok(err)) {
         err = error_code;
     }
@@ -383,12 +433,10 @@ errval_t dist_exists(const char* query, ...)
     char* buf = NULL;
     FORMAT_QUERY(query, args, buf);
 
-    struct dist2_rpc_client* rpc_client = get_dist_rpc_client();
-
+    struct dist2_thc_client_binding_t* cl = dist_get_thc_client();
     errval_t error_code;
-    DIST_LOCK_BINDING(rpc_client);
-    err = rpc_client->vtbl.exists(rpc_client, buf, NOP_TRIGGER, &error_code);
-    DIST_UNLOCK_BINDING(rpc_client);
+    dist2_trigger_id_t tid;
+    err = cl->call_seq.exists(cl, buf, NOP_TRIGGER, &tid, &error_code);
     if (err_is_ok(err)) {
         err = error_code;
     }
