@@ -1,5 +1,5 @@
 ##########################################################################
-# Copyright (c) 2009, 2010, 2011 ETH Zurich.
+# Copyright (c) 2009, 2010, 2011, 2012 ETH Zurich.
 # All rights reserved.
 #
 # This file is distributed under the terms in the attached LICENSE file.
@@ -42,6 +42,7 @@ MODULES_COMMON= \
 	sbin/init_null \
 	sbin/init \
 	sbin/chips \
+	sbin/skb \
 	sbin/spawnd \
 	sbin/startd \
 	sbin/flounder_stubs_empty_bench \
@@ -88,6 +89,8 @@ MODULES_x86_64= \
 	sbin/datagatherer \
 	sbin/ahcid \
 	sbin/e1000n \
+	sbin/NGD_mng \
+	sbin/e10k \
 	sbin/rtl8029 \
 	sbin/netd \
 	sbin/echoserver \
@@ -104,6 +107,8 @@ MODULES_x86_64= \
 	sbin/net-test \
 	sbin/netthroughput \
 	sbin/pci \
+        sbin/acpi \
+        sbin/kaluga \
 	sbin/placement_bench \
 	sbin/phases_bench \
 	sbin/phases_scale_bench \
@@ -115,7 +120,6 @@ MODULES_x86_64= \
 	sbin/shared_mem_clock_bench \
 	sbin/sif \
 	sbin/slideshow \
-	sbin/skb \
 	sbin/spantest \
 	sbin/testconcurrent \
 	sbin/thc_v_flounder_empty \
@@ -168,7 +172,8 @@ MODULES_x86_32=\
 	sbin/fish \
 	sbin/fputest \
 	sbin/pci \
-	sbin/skb \
+        sbin/acpi \
+        sbin/kaluga \
 	sbin/slideshow \
 	sbin/thc_v_flounder_empty \
 	sbin/thcidctest \
@@ -188,6 +193,7 @@ MODULES_scc=\
 	sbin/bench \
 	sbin/eMAC \
 	sbin/netd \
+	sbin/NGD_mng \
 	sbin/webserver \
 	sbin/ipirc_test \
 	sbin/thc_v_flounder_empty \
@@ -346,8 +352,9 @@ scc: all tools/bin/dite menu.lst.scc
 	tools/bin/dite -32 -o bigimage.dat menu.lst.scc
 	cp $(SRCDIR)/tools/scc/bootvector.dat .
 	bin2obj -m $(SRCDIR)/tools/scc/bigimage.map -o barrelfish0.obj
-	@echo Taking the barrelfish.obj file to SCC host
-	scp barrelfish0.obj user@tomme1.in.barrelfish.org:
+	bin2obj -m $(SRCDIR)/tools/scc/bootvector.map -o barrelfish1.obj
+	@echo Taking the barrelfish.obj files to SCC host
+	scp barrelfish[01].obj user@tomme1.in.barrelfish.org:
 
 # M5 Simulation targets
 
@@ -381,9 +388,8 @@ cscope.out: cscope.files
 	cscope -k -b -i$<
 
 TAGS: cscope.files
-#	etags - < $<
-	etags -L cscope.files # for emacs
-	ctags -L cscope.files -o TAGS_VI # for vim
+	etags - < $< # for emacs
+	cat $< | xargs ctags -o TAGS_VI # for vim
 
 # force rebuild of the Makefile
 rehake: ./hake/hake
