@@ -159,7 +159,7 @@ static errval_t vspace_map_wrapper(lvaddr_t vaddr, struct capref frame,
 }
 // allocates some bytes of memory for the guest starting at a specific addr
 // also performs the mapping into the vspace of the monitor
-static errval_t
+errval_t
 alloc_guest_mem(struct guest *g, lvaddr_t guest_paddr, size_t bytes)
 {
     errval_t err;
@@ -200,7 +200,7 @@ alloc_guest_mem(struct guest *g, lvaddr_t guest_paddr, size_t bytes)
 	struct frame_identity frameid = { .base = 0, .bits = 0 };
 	errval_t r = invoke_frame_identify(cap, &frameid);
 	assert(err_is_ok(r));
-	VMKIT_PCI_DEBUG("alloc_guest_mem: frameid.base: 0x%lx, frameid.bits: %d\n",frameid.base, frameid.bits);
+	VMKIT_PCI_DEBUG("alloc_guest_mem: frameid.base: 0x%lx, frameid.bits: %d, g->mem_low_va: 0x%lx, g->mem_high_va: 0x%lx\n",frameid.base, frameid.bits, g->mem_low_va, g->mem_high_va);
 
     return SYS_ERR_OK;
 }
@@ -636,6 +636,10 @@ guest_setup (struct guest *g)
     struct pci_device *ethernet = pci_ethernet_new(g->lpc, g);
     int r = pci_attach_device(g->pci, 0, 2, ethernet);
 	assert(r == 0);
+
+	struct pci_device *vmio = pci_vmio_new(g->lpc, g);
+	r = pci_attach_device(g->pci, 0, 3, vmio);
+	assert(r==0);
 
     // set up bios memory
     // FIXME: find a modular way to do this
@@ -2062,6 +2066,7 @@ static int register_needs_translation(uint64_t addr){
 
 
 static uint64_t vaddr_to_paddr(uint64_t vaddr){
+
 	uint64_t res = 0x100000000 + vaddr;
 	VMKIT_PCI_DEBUG("Returning: 0x%lx\n", res);
 	return res;
