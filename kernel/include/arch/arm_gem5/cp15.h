@@ -50,47 +50,44 @@ static inline uint32_t cp15_read_far(void)
     return addr;
 }
 
-static inline lpaddr_t cp15_read_ttbr(void)
+static inline lpaddr_t cp15_read_ttbr0(void)
 {
     lpaddr_t ttbr;
     __asm volatile(" mrc  p15, 0, %[ttbr], c2, c0, 0" : [ttbr] "=r" (ttbr));
     return ttbr;
 }
 
-static inline void cp15_write_ttbr(lpaddr_t ttbr)
+static inline lpaddr_t cp15_read_ttbr1(void)
+{
+    lpaddr_t ttbr;
+    __asm volatile(" mrc  p15, 0, %[ttbr], c2, c0, 1" : [ttbr] "=r" (ttbr));
+    return ttbr;
+}
+
+static inline void cp15_write_ttbr0(lpaddr_t ttbr)
 {
     __asm volatile(" mcr  p15, 0, %[ttbr], c2, c0, 0" :: [ttbr] "r" (ttbr));
 }
 
-/*
- * IXP2800_Hardware_Reference_Manual, p.94 i-cache
- * IXP2800_Hardware_Reference_Manual, p.105 D-cache
- */
-static inline void cp15_invalidate_i_and_d_caches(void)
+static inline void cp15_write_ttbr1(lpaddr_t ttbr)
 {
-    uint32_t tmp_mem;
-    uint32_t *tmp = &tmp_mem; //Use variable on stack as storage space. We need a safe place in virtual memory.
-
-    __asm volatile(
-                   //Clean (write back) D-cache
-                   "MOV r0, #1024 \n\t"
-                   "LOOP1: \n\t"
-                   "MCR p15, 0, r1, c7, c2, 5\n\t"
-                   "ADD r1, r1, #32\n\t"
-                   "SUBS r0, r0, #1\n\t"
-                   "BNE LOOP1\n\t"
-                   "MOV r0, #64\n\t"
-
-                   //Clean (write back) mini D-cache
-                   "LOOP2:\n\t"
-                   "MOV r2, %[tmp]\n\t" 
-                   "LDR r3, [r2], #32\n\t"
-                   "SUBS r0, r0, #1\n\t"
-                   "BNE LOOP2\n\t"
-                   "MCR p15, 0, r0, c7, c6, 0\n\t" //Invalidate D-cache
-                   "mcr  p15, 0, r1, c7, c5, 0 \n\t" //Invalidate i-cache
-                   ::[tmp] "r" (tmp) : "r0", "r1", "r2", "r3");
+    __asm volatile(" mcr  p15, 0, %[ttbr], c2, c0, 1" :: [ttbr] "r" (ttbr));
 }
+
+static inline uint32_t cp15_read_ttbcr(void)
+{
+	uint32_t ttbcr;
+	__asm volatile ("mrc p15, 0, %[ttbcr], c2, c0, 2" : [ttbcr] "=r" (ttbcr));
+	return ttbcr;
+}
+
+static inline void cp15_write_ttbcr(uint32_t ttbcr)
+{
+	__asm volatile ("mcr p15, 0, %[ttbcr], c2, c0, 2" :: [ttbcr] "r" (ttbcr));
+}
+
+void cp15_invalidate_d_cache(void);
+void cp15_invalidate_i_and_d_caches(void);
 
 static inline uint32_t cp15_read_cache_status(void){
     uint32_t cache;
@@ -117,6 +114,28 @@ static inline void cp15_disable_cache(void){
 static inline void cp15_invalidate_tlb(void)
 {
     __asm volatile(" mcr  p15, 0, r0, c8, c7, 0");
+}
+
+static inline uint8_t cp15_get_cpu_id(void) {
+	uint8_t cpu_id;
+	__asm volatile(
+			"mrc 	p15, 0, %[cpu_id], c0, c0, 5\n\t" 			// get the MPIDR register
+			"and	%[cpu_id], %[cpu_id], #0xF\n\t"
+			:[cpu_id] "=r" (cpu_id)
+		);
+
+	return cpu_id;
+}
+
+/*
+ * Get the configuration base address
+ * This is described in the Cortex A9 TRM, 4.2.32
+ */
+static inline uint32_t cp15_read_cbar(void)
+{
+  uint32_t cbar;
+  __asm volatile ("mrc p15, 4, %[cbar], c15, c0, 0" : [cbar] "=r" (cbar));
+  return cbar & ~0x1FFF; // Only [31:13] is valid
 }
 
 #endif // __CP15_H__

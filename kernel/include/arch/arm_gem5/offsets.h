@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (c) 2007, 2008, 2009, ETH Zurich.
+ * Copyright (c) 2007, 2008, 2009, 2012, ETH Zurich.
  * All rights reserved.
  *
  * This file is distributed under the terms in the attached LICENSE file.
@@ -50,7 +50,8 @@
  * Entry point is 0x11000.
  *
  */
-#define START_KERNEL_PHYS       (0x10000 + 0x1000)
+//#define START_KERNEL_PHYS       (0x10000 + 0x1000)
+#define START_KERNEL_PHYS		0x100000
 
 /**
  * Physical address of the kernel stack at boot time.
@@ -118,6 +119,18 @@
  * 2GB.
  */
 #define MEMORY_OFFSET           GEN_ADDR(31)
+// 2G (2 ** 31)
+
+/**
+ * Absolute start of RAM in physical memory.
+ */
+#define PHYS_MEMORY_START       GEN_ADDR(31)
+// 2G (2 ** 31)
+
+/*
+ * Device offset to map devices in high memory.
+ */
+#define DEVICE_OFFSET			0xfff00000
 
 /**
  * Kernel stack size -- 16KB
@@ -133,24 +146,29 @@
  * Bytes per kernel copy for each core (1 Section)
  */
 #define KERNEL_SECTION_SIZE		0x100000
+// 1MB, (2 ** 20)
+
+#define KERNEL_STACK_ADDR		(lpaddr_t)kernel_stack
 
 #ifndef __ASSEMBLER__
 
 static inline lvaddr_t local_phys_to_mem(lpaddr_t addr)
 {
-    assert(addr < PADDR_SPACE_LIMIT);
-    return (lvaddr_t)(addr + (lpaddr_t)MEMORY_OFFSET);
+    if(PADDR_SPACE_LIMIT - PHYS_MEMORY_START > 0) {
+        assert(addr < PHYS_MEMORY_START + PADDR_SPACE_LIMIT);
+    }
+    return (lvaddr_t)(addr + ((lpaddr_t)MEMORY_OFFSET - (lpaddr_t)PHYS_MEMORY_START));
 }
 
 static inline lpaddr_t mem_to_local_phys(lvaddr_t addr)
 {
     assert(addr >= MEMORY_OFFSET);
-    return (lpaddr_t)(addr - (lvaddr_t)MEMORY_OFFSET);
+    return (lpaddr_t)(addr - ((lvaddr_t)MEMORY_OFFSET - (lvaddr_t)PHYS_MEMORY_START));
 }
 
 static inline lpaddr_t gen_phys_to_local_phys(genpaddr_t addr)
 {
-    assert(addr < PADDR_SPACE_SIZE);
+    //assert(addr < PADDR_SPACE_SIZE);
     return (lpaddr_t)addr;
 }
 
@@ -177,6 +195,8 @@ extern uint8_t kernel_text_final_byte;
  */
 extern uint8_t kernel_final_byte;
 
+extern uint8_t kernel_elf_header;
+
 /**
  * \brief The kernel stack.
  *
@@ -184,6 +204,7 @@ extern uint8_t kernel_final_byte;
  */
 extern uintptr_t kernel_stack[KERNEL_STACK_SIZE/sizeof(uintptr_t)];
 
+#endif  // __ASSEMBLER__
 
 /**
  * Kernel interrupt jump table
@@ -191,6 +212,6 @@ extern uintptr_t kernel_stack[KERNEL_STACK_SIZE/sizeof(uintptr_t)];
 #define INT_HANDLER_TABLE	0xFFFF0100
 
 
-#endif  // __ASSEMBLER__
+
 
 #endif  // OFFSETS_H

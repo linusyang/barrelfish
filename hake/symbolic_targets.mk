@@ -216,7 +216,7 @@ MODULES_arm=\
 # XScale-specific modules to build by default
 MODULES_xscale=\
 	sbin/cpu.bin
-	
+
 # ArmGem5-specific modules to build by default
 #MODULES_arm_gem5=\
 
@@ -274,7 +274,7 @@ else ifeq ($(ARCH),scc)
 	GDB=gdb
 else ifeq ($(ARCH),arm)
 	ARM_QEMU_CMD=qemu-system-arm -kernel arm/sbin/cpu.bin -nographic -no-reboot -m 256 -initrd arm/romfs.cpio
-	GDB=xterm -e arm-none-linux-gnueabi-gdb
+	GDB=xterm -e arm-linux-gnueabi-gdb
 simulate: $(MODULES) arm/romfs.cpio
 	$(ARM_QEMU_CMD)
 .PHONY: simulate
@@ -287,7 +287,7 @@ debugsim: $(MODULES) arm/romfs.cpio arm/tools/debug.arm.gdb
 .PHONY : debugsim
 else ifeq ($(ARCH),arm11mp)
 	QEMU_CMD=qemu-system-arm -cpu mpcore -M realview -kernel arm11mp/sbin/cpu.bin
-	GDB=arm-none-linux-gnueabi-gdb
+	GDB=arm-linux-gnueabi-gdb
 endif
 
 
@@ -382,6 +382,66 @@ m5: m5_kernel m5script.py
 	@echo "** simulation script."
 	m5.fast m5script.py --num_cpus=2 --kernel=m5_kernel
 .PHONY : m5
+
+# ARM GEM5 Simulation Targets
+
+ARM_PREFIX=arm-linux-gnueabi-
+
+#gem5script.py: $(SRCDIR)/tools/arm_gem5/gem5script.py
+#    cp $< $@
+
+menu.lst.arm_gem5: $(SRCDIR)/hake/menu.lst.arm_gem5
+	cp $< $@
+
+menu.lst.arm_gem5_mc: $(SRCDIR)/hake/menu.lst.arm_gem5_mc
+	cp $< $@
+
+arm_gem5_kernel: $(MODULES) tools/bin/arm_molly menu.lst.arm_gem5 $(SRCDIR)/tools/arm_gem5/gem5script.py
+	$(SRCDIR)/tools/arm_molly/build_data_files.sh menu.lst.arm_gem5 m5_tmp
+	tools/bin/arm_molly menu.lst.arm_gem5 arm_mbi.c
+	$(ARM_PREFIX)gcc -std=c99 -g -fPIC -pie -Wl,-N -fno-builtin -nostdlib -march=armv7-a -mapcs -fno-unwind-tables  -T$(SRCDIR)/tools/arm_molly/molly_ld_script -I$(SRCDIR)/include -I$(SRCDIR)/include/arch/arm -I./arm_gem5/include -I$(SRCDIR)/include/oldc -I$(SRCDIR)/include/c -imacros $(SRCDIR)/include/deputy/nodeputy.h $(SRCDIR)/tools/arm_molly/molly_boot.S $(SRCDIR)/tools/arm_molly/molly_init.c $(SRCDIR)/tools/arm_molly/lib.c ./arm_mbi.c $(SRCDIR)/lib/elf/elf32.c ./m5_tmp/* -o arm_gem5_kernel
+	@echo "Now invoke gem5, e.g. as 'gem5.fast ../tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel'"
+
+arm_gem5: arm_gem5_kernel $(SRCDIR)/tools/arm_gem5/gem5script.py
+	gem5.fast $(SRCDIR)/tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel --caches --l2cache
+.PHONY : arm_gem5
+
+arm_gem5_detailed: arm_gem5_kernel $(SRCDIR)/tools/arm_gem5/gem5script.py
+	gem5.fast $(SRCDIR)/tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel --cpu-type=arm_detailed --caches --l2cache
+.PHONY : arm_gem5_detailed
+
+arm_gem5_detailed_mc: arm_gem5_kernel $(SRCDIR)/tools/arm_gem5/gem5script.py
+	gem5.fast $(SRCDIR)/tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel --cpu-type=arm_detailed --n=2 --caches --l2cache
+.PHONY : arm_gem5_detailed
+
+arm_gem5_kernel_mc: $(MODULES) tools/bin/arm_molly menu.lst.arm_gem5_mc $(SRCDIR)/tools/arm_gem5/gem5script.py
+	$(SRCDIR)/tools/arm_molly/build_data_files.sh menu.lst.arm_gem5_mc m5_tmp
+	tools/bin/arm_molly menu.lst.arm_gem5_mc arm_mbi.c
+	$(ARM_PREFIX)gcc -std=c99 -g -fPIC -pie -Wl,-N -fno-builtin -nostdlib -march=armv7-a -mapcs -fno-unwind-tables  -T$(SRCDIR)/tools/arm_molly/molly_ld_script -I$(SRCDIR)/include -I$(SRCDIR)/include/arch/arm -I./arm_gem5/include -I$(SRCDIR)/include/oldc -I$(SRCDIR)/include/c -imacros $(SRCDIR)/include/deputy/nodeputy.h $(SRCDIR)/tools/arm_molly/molly_boot.S $(SRCDIR)/tools/arm_molly/molly_init.c $(SRCDIR)/tools/arm_molly/lib.c ./arm_mbi.c $(SRCDIR)/lib/elf/elf32.c ./m5_tmp/* -o arm_gem5_kernel
+	@echo "Now invoke gem5, e.g. as 'gem5.fast ../tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel'"
+
+arm_gem5_mc: arm_gem5_kernel_mc $(SRCDIR)/tools/arm_gem5/gem5script.py
+	gem5.fast $(SRCDIR)/tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel --n=4 --caches --l2cache
+.PHONY : arm_gem5_mc
+
+# For the panda board
+menu.lst.arm_gem5_panda: $(SRCDIR)/hake/menu.lst.arm_gem5_panda
+	cp $< $@
+
+arm_gem5_kernel_panda: $(MODULES) tools/bin/arm_molly menu.lst.arm_gem5_panda $(SRCDIR)/tools/arm_gem5/gem5script.py
+	$(SRCDIR)/tools/arm_molly/build_data_files.sh menu.lst.arm_gem5_panda m5_tmp
+	tools/bin/arm_molly menu.lst.arm_gem5_panda arm_mbi.c
+	$(ARM_PREFIX)gcc -std=c99 -g -fPIC -pie -Wl,-N -fno-builtin -nostdlib -march=armv7-a -mapcs -fno-unwind-tables  -T$(SRCDIR)/tools/arm_molly/molly_ld_script -I$(SRCDIR)/include -I$(SRCDIR)/include/arch/arm -I./arm_gem5/include -I$(SRCDIR)/include/oldc -I$(SRCDIR)/include/c -imacros $(SRCDIR)/include/deputy/nodeputy.h $(SRCDIR)/tools/arm_molly/molly_boot.S $(SRCDIR)/tools/arm_molly/molly_init.c $(SRCDIR)/tools/arm_molly/lib.c ./arm_mbi.c $(SRCDIR)/lib/elf/elf32.c ./m5_tmp/* -o arm_gem5_kernel
+	@echo "Now invoke gem5, e.g. as 'gem5.fast ../tools/arm_gem5/gem5script.py --kernel=arm_gem5_kernel'"
+
+arm_gem5_panda: arm_gem5_kernel_panda $(SRCDIR)/tools/arm_gem5/gem5script.py
+	gem5.fast $(SRCDIR)/tools/arm_gem5/gem5Panda.py --kernel=arm_gem5_kernel
+.PHONY : arm_gem5_panda
+
+arm_gem5_harness_kernel: $(MODULES) tools/bin/arm_molly $(SRCDIR)/tools/arm_gem5/gem5script.py menu.lst
+	$(SRCDIR)/tools/arm_molly/build_data_files.sh menu.lst m5_tmp
+	tools/bin/arm_molly menu.lst arm_mbi.c
+	$(ARM_PREFIX)gcc -std=c99 -g -fPIC -pie -Wl,-N -fno-builtin -nostdlib -march=armv7-a -mapcs -fno-unwind-tables  -T$(SRCDIR)/tools/arm_molly/molly_ld_script -I$(SRCDIR)/include -I$(SRCDIR)/include/arch/arm -I./arm_gem5/include -I$(SRCDIR)/include/oldc -I$(SRCDIR)/include/c -imacros $(SRCDIR)/include/deputy/nodeputy.h $(SRCDIR)/tools/arm_molly/molly_boot.S $(SRCDIR)/tools/arm_molly/molly_init.c $(SRCDIR)/tools/arm_molly/lib.c ./arm_mbi.c $(SRCDIR)/lib/elf/elf32.c ./m5_tmp/* -o arm_gem5_harness_kernel
 
 # Source indexing targets
 cscope.files:

@@ -29,7 +29,7 @@ static void kflush(void)
 
 void kprintf_begin(void)
 {
-    kcount = 0;
+	kcount = 0;
 }
 
 int kputchar(int c)

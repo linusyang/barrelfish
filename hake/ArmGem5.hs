@@ -29,15 +29,16 @@ import qualified ArchDefaults
 arch = "arm_gem5"
 archFamily = "arm"
 
-compiler = "arm-none-linux-gnueabi-gcc"
-objcopy  = "arm-none-linux-gnueabi-objcopy"
-objdump  = "arm-none-linux-gnueabi-objdump"
-ar       = "arm-none-linux-gnueabi-ar"
-ranlib   = "arm-none-linux-gnueabi-ranlib"
-cxxcompiler = "arm-none-linux-gnueabi-g++"
+compiler = "arm-linux-gnueabi-gcc"
+objcopy  = "arm-linux-gnueabi-objcopy"
+objdump  = "arm-linux-gnueabi-objdump"
+ar       = "arm-linux-gnueabi-ar"
+ranlib   = "arm-linux-gnueabi-ranlib"
+cxxcompiler = "arm-linux-gnueabi-g++"
 
 ourCommonFlags = [ Str "-fno-unwind-tables",
                    Str "-Wno-packed-bitfield-compat",
+                   Str "-marm",
                    Str "-mcpu=cortex-a9",
 		   Str "-march=armv7-a",
                    Str "-mapcs",
@@ -45,7 +46,7 @@ ourCommonFlags = [ Str "-fno-unwind-tables",
                    Str "-msingle-pic-base",
                    Str "-mpic-register=r10",
                    Str "-DPIC_REGISTER=R10",
-                   Str "-fpic",
+                   Str "-fPIE",
                    Str "-ffixed-r9",
                    Str "-DTHREAD_REGISTER=R9",
                    Str "-D__ARM_CORTEX__",
@@ -85,8 +86,8 @@ options = (ArchDefaults.options arch archFamily) {
             optLdFlags = ldFlags,
             optLdCxxFlags = ldCxxFlags,
             optLibs = stdLibs,
-            optInterconnectDrivers = ["lmp"],
-            optFlounderBackends = ["lmp"]
+            optInterconnectDrivers = ["lmp", "ump"],
+            optFlounderBackends = ["lmp", "ump"]
           }
 
 --
@@ -111,8 +112,10 @@ kernelCFlags = [ Str s | s <- [ "-fno-builtin",
                                 "-fno-unwind-tables",
                                 "-nostdinc",
                                 "-std=c99",
+                                "-marm",
                                 "-mcpu=cortex-a9",
-                                "-mapcs",
+                                "-march=armv7-a",
+				"-mapcs",
                                 "-mabi=aapcs-linux",
                                 "-fPIE",
                                 "-U__linux__",
@@ -126,7 +129,6 @@ kernelCFlags = [ Str s | s <- [ "-fno-builtin",
                                 "-Wredundant-decls",
                                 "-Werror",
                                 "-imacros deputy/nodeputy.h",
-                                "-fpie",
                                 "-fno-stack-check",
                                 "-ffreestanding",
                                 "-fomit-frame-pointer",
@@ -149,6 +151,7 @@ kernelLdFlags = [ Str "-Wl,-N",
                   NStr "-Wl,-Map,", Out arch "kernel.map",
                   Str "-fno-builtin",
                   Str "-nostdlib",
+		  Str "-pie",
                   Str "-Wl,--fatal-warnings"
                 ]
 

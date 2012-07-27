@@ -9,7 +9,7 @@ timeout 0
 
 title	Barrelfish
 #root	(nd)
-#kernel	/arm_gem5/sbin/cpu loglevel=4
+kernel	/arm_gem5/sbin/cpu loglevel=4
 module	/arm_gem5/sbin/cpu
 module	/arm_gem5/sbin/init
 
@@ -21,11 +21,14 @@ module	/arm_gem5/sbin/monitor
 #module /arm_gem5/sbin/chips boot
 module /arm_gem5/sbin/ramfsd boot
 module /arm_gem5/sbin/skb boot
-module /arm_gem5/sbin/spawnd boot bootarm
-module /arm_gem5/sbin/startd boot 
+module /arm_gem5/sbin/spawnd boot bootarm=0
+module /arm_gem5/sbin/startd boot
 
 # General user domains
 #module	/arm_gem5/sbin/serial
 #module	/arm_gem5/sbin/fish
 
-#module /arm_gem5/sbin/memtest
+module /arm_gem5/sbin/memtest
+
+# For pandaboard, use following values.
+mmap map 0x80000000 0x40000000 1
