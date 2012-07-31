@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (c) 2009 ETH Zurich.
  * All rights reserved.
  *
@@ -230,7 +230,8 @@ void enable_mmu(void)
                         // Section: B2.12.17 c1, System Control Register (SCTLR)
                         // Enable: D-Cache, I-Cache, Alignment, MMU (0x007) --> works
                         // Everything without D-Cache (0x003) --> works
-			"ldr	r1, =0x1007\n\t"
+                        //			"ldr	r1, =0x1007\n\t"
+			"ldr	r1, =0x1003\n\t"
 			"mrc	p15, 0, r0, c1, c0, 0\n\t"      // read out system configuration register
 			"orr	r0, r0, r1\n\t"
 			"mcr	p15, 0, r0, c1, c0, 0\n\t"	// enable MMU
@@ -320,35 +321,25 @@ static void  __attribute__ ((noinline,noreturn)) text_init(void)
     errval_t errval;
 
     // Map-out low memory
-    if(glbl_core_data->multiboot_flags & MULTIBOOT_INFO_FLAG_HAS_MMAP)
-    {
-    	struct arm_coredata_mmap *mmap = (struct arm_coredata_mmap *)
-    			local_phys_to_mem(glbl_core_data->mmap_addr);
+    if(glbl_core_data->multiboot_flags & MULTIBOOT_INFO_FLAG_HAS_MMAP) {
 
-    	paging_arm_reset(mmap->base_addr, mmap->length);
+        struct arm_coredata_mmap *mmap = (struct arm_coredata_mmap *)
+            local_phys_to_mem(glbl_core_data->mmap_addr);
+
+        paging_arm_reset(mmap->base_addr, mmap->length);
         printf("paging_arm_reset: base: 0x%"PRIx64", length: 0x%"PRIx64".\n",
-                mmap->base_addr, mmap->length);
-    }
-    else
-    {
+               mmap->base_addr, mmap->length);
+    } else {
         panic("need multiboot MMAP\n");
     }
 
     exceptions_init();
 
-    /* printf("Causing page fault\n"); */
-    /* volatile uint32_t *ptr = (uint32_t *)0xc0100000; */
-    /* uint32_t tmp = *ptr; */
-    /* printf("%u\n", tmp); */
-    /* *ptr = 1; */
-
     printf("invalidate cache\n");
-//    cp15_invalidate_i_and_d_caches();
-      cp15_invalidate_i_and_d_caches_fast();
+    cp15_invalidate_i_and_d_caches_fast();
 
     printf("invalidate TLB\n");
     cp15_invalidate_tlb();
-//    cp15_invalidate_tlb_fn();
 
     printf("startup_early\n");
 
@@ -360,20 +351,19 @@ static void  __attribute__ ((noinline,noreturn)) text_init(void)
 
     // do not remove/change this printf: needed by regression harness
     printf("Barrelfish CPU driver starting on ARMv7"
-            " Board id 0x%08"PRIx32"\n", hal_get_board_id());
+           " Board id 0x%08"PRIx32"\n", hal_get_board_id());
     printf("The address of paging_map_kernel_section is %p\n",
-            paging_map_kernel_section);
+           paging_map_kernel_section);
 
     errval = serial_debug_init(serial_debug_port);
     if (err_is_fail(errval))
-    {
-        printf("Failed to initialize debug port: %d",
-                serial_debug_port);
-    }
+        {
+            printf("Failed to initialize debug port: %d",
+                   serial_debug_port);
+        }
 
     my_core_id = hal_get_cpu_id();
     printf("cpu id %d\n", my_core_id);
-
 
     // Test MMU by remapping the device identifier and reading it using a
     // virtual address 
@@ -382,7 +372,13 @@ static void  __attribute__ ((noinline,noreturn)) text_init(void)
                                                   ARM_L1_SECTION_BYTES);
     omap44xx_id_t id;
     omap44xx_id_initialize(&id, (mackerel_addr_t)(id_code_remapped + 
+<<<<<<< variant A
+                                                  (CONFIG_PHYSBASE & ARM_L1_SECTION_MASK)));
+>>>>>>> variant B
 				 (OMAP44XX_MAP_L4_CFG_SYSCTRL_GENERAL_CORE & ARM_L1_SECTION_MASK)));
+####### Ancestor
+				 (CONFIG_PHYSBASE & ARM_L1_SECTION_MASK)));
+======= end
     char buf[200];
     omap44xx_id_code_pr(buf,200,&id);
     printf("Using MMU, %s", buf);
