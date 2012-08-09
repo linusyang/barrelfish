@@ -1,6 +1,8 @@
 /**
  * \file
- * \brief Bootstrap the kernel.
+ * \brief Bootstrap the kernel for ARMv7 processors.  This code is
+ *      entered from the bootloader (typically arm_molly, RedBoot,
+ *      etc.).
  */
 /*
  * Copyright (c) 2009 ETH Zurich.
@@ -18,13 +20,13 @@
 #include <barrelfish_kpi/flags_arch.h> // ARM_MODE_MASK
 #include <offsets.h> // BOOT_STACK_PHYS
 
-	.text
+        .text
         .arm
 
         .globl start, halt, got_base
         .extern kernel_stack, glbl_core_data
 
-	// Used to track phys memory allocator limit globally.
+        // Used to track phys memory allocator limit globally.
         alloc_top .req r11
 
 start:
@@ -35,22 +37,21 @@ start:
         // No TLB lockdown.
         // CPU is in a priviledged mode.
         //
-        mrs	r3, cpsr                        // Ensure in SYS mode
+        mrs     r3, cpsr                // Ensure in SYS mode
         bic     r3, r3, #ARM_MODE_MASK
-//        orr     r3, r3, #ARM_MODE_SYS
-        orr  r3, r3, #ARM_MODE_PRIV          // Ensure in Priveledged mode
-        msr     cpsr_c, r3
+        orr     r3, r3, #ARM_MODE_PRIV  // Ensure in privileged mode
+        msr     cpsr_c, r3		// _c => don't change cond. codes
 
-	//init stack
+        //init stack
         ldr     sp, =kernel_stack
-        add	sp, sp, #KERNEL_STACK_SIZE
+        add     sp, sp, #KERNEL_STACK_SIZE
 
-	ldr	PIC_REGISTER, =got_base
+        ldr     PIC_REGISTER, =got_base
 
         //prepare argument
-        mov	r0, r2
-        b 	arch_init
-        b	halt
+        mov     r0, r2
+        b       arch_init
+        b       halt
 
 
 /**
@@ -58,6 +59,12 @@ start:
  */
 halt:
         b       .
+
+
+        .globl got_base, cp15_invalidate_d_cache,\
+                cp15_invalidate_i_and_d_caches,\
+                cp15_invalidate_i_and_d_caches_fast, cp15_invalidate_tlb_fn
+
 	
 
 
