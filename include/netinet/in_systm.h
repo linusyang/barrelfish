@@ -1,18 +1,5 @@
-/**
- * \file netinet/in.h
- */
-
-/*
- * Copyright (c) 2012, ETH Zurich.
- * All rights reserved.
- *
- * This file is distributed under the terms in the attached LICENSE file.
- * If you do not find this file, copies can be found by writing to:
- * ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
- */
-
 /*-
- * Copyright (c) 1982, 1986, 1990, 1993
+ * Copyright (c) 1982, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,19 +26,33 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	@(#)in.h	8.3 (Berkeley) 1/3/94
+ *	@(#)in_systm.h	8.1 (Berkeley) 6/10/93
  * $FreeBSD$
  */
 
-#ifndef _NETINET_IN_H_
-#define _NETINET_IN_H_
-
-#include <lwip/sockets.h>
+#ifndef _NETINET_IN_SYSTM_H_
+#define _NETINET_IN_SYSTM_H_
 
 /*
- * Ports < IPPORT_RESERVED are reserved for
- * privileged processes (e.g. root).         (IP_PORTRANGE_LOW)
+ * Miscellaneous internetwork
+ * definitions for kernel.
  */
-#define	IPPORT_RESERVED		1024
 
-#endif //_NETINET_IN_H_
+/*
+ * Network types.
+ *
+ * Internally the system keeps counters in the headers with the bytes
+ * swapped so that VAX instructions will work on them.  It reverses
+ * the bytes before transmission at each protocol level.  The n_ types
+ * represent the types with the bytes in ``high-ender'' order.
+ */
+typedef u_int16_t n_short;		/* short as received from the net */
+typedef u_int32_t n_long;		/* long as received from the net */
+
+typedef	u_int32_t n_time;		/* ms since 00:00 GMT, byte rev */
+
+#ifdef _KERNEL
+uint32_t	 iptime(void);
+#endif
+
+#endif

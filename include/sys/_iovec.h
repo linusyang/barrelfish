@@ -1,18 +1,9 @@
 /**
- * \file netinet/in.h
- */
-
-/*
- * Copyright (c) 2012, ETH Zurich.
- * All rights reserved.
- *
- * This file is distributed under the terms in the attached LICENSE file.
- * If you do not find this file, copies can be found by writing to:
- * ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+ * \file sys/_iovec.h
  */
 
 /*-
- * Copyright (c) 1982, 1986, 1990, 1993
+ * Copyright (c) 1982, 1986, 1993, 1994
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,19 +30,23 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	@(#)in.h	8.3 (Berkeley) 1/3/94
+ *	@(#)uio.h	8.5 (Berkeley) 2/22/94
  * $FreeBSD$
  */
 
-#ifndef _NETINET_IN_H_
-#define _NETINET_IN_H_
+#ifndef _SYS__IOVEC_H_
+#define	_SYS__IOVEC_H_
 
-#include <lwip/sockets.h>
+#include <sys/_types.h>
 
-/*
- * Ports < IPPORT_RESERVED are reserved for
- * privileged processes (e.g. root).         (IP_PORTRANGE_LOW)
- */
-#define	IPPORT_RESERVED		1024
+#ifndef _SIZE_T_DECLARED
+typedef	__size_t	size_t;
+#define	_SIZE_T_DECLARED
+#endif
 
-#endif //_NETINET_IN_H_
+struct iovec {
+	void	*iov_base;	/* Base address. */
+	size_t	 iov_len;	/* Length. */
+};
+
+#endif /* !_SYS__IOVEC_H_ */

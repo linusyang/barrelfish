@@ -12,8 +12,7 @@
 --------------------------------------------------------------------------
 
 module RuleDefs where
-import Data.List
-import List (intersect)
+import Data.List (intersect, isSuffixOf, union, (\\), nub, sortBy, elemIndex)
 import Path
 import qualified X86_64
 import qualified X86_32
@@ -954,25 +953,29 @@ data LibDepTree = LibDep String | LibDeps [LibDepTree] deriving (Show,Eq)
 -- manually add dependencies for now (it would be better if each library
 -- defined each own dependencies locally, but that does not seem to be an
 -- easy thing to do currently
-libposixcompat_deps = LibDeps $ [ LibDep x | x <- deps ]
-    where deps = ["vfsfd", "posixcompat"]
+libposixcompat_deps = LibDeps [ LibDep "posixcompat", liblwip_deps,
+                                libvfs_deps_all ]
 liblwip_deps        = LibDeps $ [ LibDep x | x <- deps ]
     where deps = ["lwip" ,"contmng" ,"procon" ,"timer" ,"hashtable"]
 libnetQmng_deps        = LibDeps $ [ LibDep x | x <- deps ]
     where deps = ["net_queue_manager", "contmng" ,"procon" , "bfdmuxvm"]
-libnet_deps         = LibDeps $ [liblwip_deps, libposixcompat_deps]
-libnfs_deps         = LibDeps $ [ LibDep "nfs", libnet_deps]
+libnfs_deps         = LibDeps $ [ LibDep "nfs", liblwip_deps ]
 
 -- we need to make vfs more modular to make this actually useful
-data VFSModules = VFS_RamFS | VFS_NFS
+data VFSModules = VFS_RamFS | VFS_NFS | VFS_BlockdevFS | VFS_FAT
 vfsdeps :: [VFSModules] -> [LibDepTree]
-vfsdeps [] = [LibDep "vfs"]
-vfsdeps (VFS_RamFS:xs) = [] ++ vfsdeps xs
-vfsdeps (VFS_NFS:xs) =   [libnfs_deps] ++ vfsdeps xs
+vfsdeps []                  = [LibDep "vfs"]
+vfsdeps (VFS_RamFS:xs)      = [] ++ vfsdeps xs
+vfsdeps (VFS_NFS:xs)        = [libnfs_deps] ++ vfsdeps xs
+vfsdeps (VFS_BlockdevFS:xs) = [LibDep "ahci" ] ++ vfsdeps xs
+vfsdeps (VFS_FAT:xs)        = [] ++ vfsdeps xs
 
-libvfs_deps_all   = LibDeps $ vfsdeps [VFS_NFS, VFS_RamFS]
-libvfs_deps_nfs   = LibDeps $ vfsdeps [VFS_NFS]
-libvfs_deps_ramfs = LibDeps $ vfsdeps [VFS_RamFS]
+libvfs_deps_all        = LibDeps $ vfsdeps [VFS_NFS, VFS_RamFS, VFS_BlockdevFS,
+                                            VFS_FAT]
+libvfs_deps_nfs        = LibDeps $ vfsdeps [VFS_NFS]
+libvfs_deps_ramfs      = LibDeps $ vfsdeps [VFS_RamFS]
+libvfs_deps_blockdevfs = LibDeps $ vfsdeps [VFS_BlockdevFS]
+libvfs_deps_fat        = LibDeps $ vfsdeps [VFS_FAT, VFS_BlockdevFS]
 
 -- flatten the dependency tree
 flat :: [LibDepTree] -> [LibDepTree]
@@ -985,7 +988,6 @@ str2dep  str
     | str == "vfs"         = libvfs_deps_all
     | str == "posixcompat" = libposixcompat_deps
     | str == "lwip"        = liblwip_deps
-    | str == "net"         = libnet_deps
     | str == "netQmng"     = libnetQmng_deps
     | otherwise            = LibDep str
 
@@ -993,9 +995,10 @@ str2dep  str
 --   we need a specific order for the .a, so we define a total order
 libDeps :: [String] -> [String]
 libDeps xs = [x | (LibDep x) <- (sortBy xcmp) . nub . flat $ map str2dep xs ]
-    where xord = [ "vfs"
+    where xord = [  "posixcompat"
+                  , "vfs"
+                  , "ahci"
                   , "nfs"
-                  , "posixcompat"
                   , "net_queue_manager"
                   , "bfdmuxvm"
                   , "lwip"
