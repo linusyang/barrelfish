@@ -79,12 +79,13 @@ int main(int argc, char** argv)
         USER_PANIC_ERR(err, "Initialize octopus service.");
     }
 
+    printf("Kaluga: parse boot modules...\n");
+
     err = init_boot_modules();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "Parse boot modules.");
     }
     add_start_function_overrides();
-
 #ifdef __x86__
     // We need to run on core 0
     // (we are responsible for booting all the other cores)
@@ -107,16 +108,27 @@ int main(int argc, char** argv)
     // time in order to start-up properly.
     char* record = NULL;
     err = oct_barrier_enter("barrier.acpi", &record, 2);
+#endif
+
+#ifdef __arm__
+    debug_printf("Kaluga running on ARM. Skipping cores(), pci_root_bridge(), ...\n");
+
+    start_usb_manager();
+#else
 
     err = watch_for_cores();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "Watching cores.");
     }
 
+    printf("Kaluga: pci_root_bridge\n");
+
     err = watch_for_pci_root_bridge();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "Watching PCI root bridges.");
     }
+
+    printf("Kaluga: pci_devices\n");
 
     err = watch_for_pci_devices();
     if (err_is_fail(err)) {
@@ -155,3 +167,6 @@ int main(int argc, char** argv)
     THCFinish();
     return EXIT_SUCCESS;
 }
+
+
+
