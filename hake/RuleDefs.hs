@@ -988,9 +988,9 @@ data LibDepTree = LibDep String | LibDeps [LibDepTree] deriving (Show,Eq)
 libposixcompat_deps   = LibDeps [ LibDep "posixcompat", liblwip_deps,
                                   libvfs_deps_all, LibDep "term_server" ]
 liblwip_deps          = LibDeps $ [ LibDep x | x <- deps ]
-    where deps = ["lwip" ,"contmng" ,"procon" ,"timer" ,"hashtable"]
+    where deps = ["lwip" ,"contmng" ,"net_if_raw" ,"timer" ,"hashtable"]
 libnetQmng_deps       = LibDeps $ [ LibDep x | x <- deps ]
-    where deps = ["net_queue_manager", "contmng" ,"procon" , "bfdmuxvm"]
+    where deps = ["net_queue_manager", "contmng" ,"procon" , "net_if_raw", "bfdmuxvm"]
 libnfs_deps           = LibDeps $ [ LibDep "nfs", liblwip_deps ]
 libssh_deps           = LibDeps [ libposixcompat_deps, libopenbsdcompat_deps,
                                   LibDep "zlib", LibDep "crypto", LibDep "ssh" ]
@@ -1047,6 +1047,7 @@ libDeps xs = [x | (LibDep x) <- (sortBy xcmp) . nub . flat $ map str2dep xs ]
                   , "lwip"
                   , "contmng"
                   , "procon"
+                  , "net_if_raw"
                   , "vfsfd"
                   , "timer"
                   , "hashtable"]
