@@ -22,6 +22,9 @@
 #include <vfs/vfs.h>
 #include <timer/timer.h>
 #include "realmode.h"
+#include <bench/bench.h>
+#include "pci/devids.h"
+#include <pci/pci.h>
 
 #define VFS_MOUNTPOINT  "/vm"
 #define IMAGEFILE       (VFS_MOUNTPOINT "/system-bench.img")
@@ -69,7 +72,8 @@ int main (int argc, char *argv[])
     const char *imagefile = IMAGEFILE;
 
     vfs_init();
-    
+    bench_init();
+
     err = timer_init();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "error initialising timer client library\n");
@@ -88,6 +92,8 @@ int main (int argc, char *argv[])
 
     cardName = argv[1];
     printf("vmkitmon: start\n");
+
+    //Poll bebe
     printf("Ignoring the cardname [%s], and using the default one from vfs_mount\n",
             cardName);
     vfs_mkdir(VFS_MOUNTPOINT);
@@ -125,5 +131,9 @@ int main (int argc, char *argv[])
 
     printf("vmkitmon: end\n");
 
-    messages_handler_loop();
+    //messages_handler_loop();
+    while (1) {
+		messages_wait_and_handle_next();
+	}
+
 }
