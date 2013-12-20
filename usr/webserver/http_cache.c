@@ -39,7 +39,7 @@
 #endif // CONFIG_TRACE && NETWORK_STACK_TRACE
 
 //#define MAX_NFS_READ       14000
-#define MAX_NFS_READ      1330 /* 14000 */ /* to avoid breakage of lwip*/
+#define MAX_NFS_READ      1330 /* 14000 */ /* to avoid packet reassembly inside driver */
 
 /* Maximum staleness allowed */
 #define MAX_STALENESS ((cycles_t)9000000)
@@ -488,6 +488,23 @@ static void readdir_callback(void *arg, struct nfs_client *client,
 
     // FIXME: start here the measurement of file loading time
 
+    // FIXME: Start the trace
+#if ENABLE_WEB_TRACING
+    printf("Starting tracing\n");
+
+    errval_t err = trace_control(TRACE_EVENT(TRACE_SUBSYS_NNET,
+                                    TRACE_EVENT_NNET_START, 0),
+                        TRACE_EVENT(TRACE_SUBSYS_NNET,
+                                    TRACE_EVENT_NNET_STOP, 0), 0);
+    if(err_is_fail(err)) {
+        USER_PANIC_ERR(err, "trace_control failed");
+    }
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_START, 0);
+#else // ENABLE_WEB_TRACING
+    printf("Tracing not enabled\n");
+#endif // ENABLE_WEB_TRACING
+
+
     last_ts = rdtsc();
 //    lwip_benchmark_control(1, BMS_START_REQUEST, 0, 0);
     // initiate a lookup for every entry
@@ -556,21 +573,37 @@ static void handle_cache_load_done(void)
     DEBUGPRINT("initial_cache_load: entire cache loaded done\n");
     cache_loading_phase = false;
 
-    /* FIXME: stop the trace. */
-#if ENABLE_WEB_TRACING
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_STOP, 0);
+    // lwip_benchmark_control(1, BMS_STOP_REQUEST, 0, 0);
+    //
+    // Report the cache loading time
 
-    char *buf = malloc(4096*4096);
-    trace_dump(buf, 4096*4096, NULL);
-    printf("%s\n", buf);
+    uint64_t total_loading_time = rdtsc() - last_ts;
+    printf("Cache loading time %"PU", %"PRIu64"\n",
+            in_seconds(total_loading_time), total_loading_time);
+
+//    lwip_print_interesting_stats();
+
+    /* stop the trace. */
+#if ENABLE_WEB_TRACING
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_STOP, 0);
+
+    char *trace_buf_area = malloc(CONSOLE_DUMP_BUFLEN);
+    assert(trace_buf_area);
+    size_t used_bytes = 0;
+    trace_dump_core(trace_buf_area, CONSOLE_DUMP_BUFLEN, &used_bytes, NULL,
+            disp_get_core_id(),  true, true);
+
+    printf("\n%s\n", "dump trac buffers: Start");
+    printf("\n%s\n", trace_buf_area);
+    printf("\n%s\n", "dump trac buffers: Stop");
+    trace_reset_all();
+//    abort();
+
+    printf("Cache loading time %"PU", %"PRIu64"\n",
+            in_seconds(total_loading_time), total_loading_time);
 
 #endif // ENABLE_WEB_TRACING
 
-
-    // lwip_benchmark_control(1, BMS_STOP_REQUEST, 0, 0);
-    // Report the cache loading time
-    printf("Cache loading time %"PU"\n", in_seconds(rdtsc() - last_ts));
-//    lwip_print_interesting_stats();
 
     /* continue with the web-server initialization. */
     init_callback(); /* do remaining initialization! */
@@ -613,27 +646,15 @@ err_t http_cache_init(struct ip_addr server, const char *path,
     struct timer *cache_timer;      /* timer for triggering cache timeouts */
     init_callback = callback;
 
-    /* FIXME: Start the trace */
-#if ENABLE_WEB_TRACING
-    printf("Starting tracing\n");
-
-    errval_t err = trace_control(TRACE_EVENT(TRACE_SUBSYS_NET,
-                                    TRACE_EVENT_NET_START, 0),
-                        TRACE_EVENT(TRACE_SUBSYS_NET,
-                                    TRACE_EVENT_NET_STOP, 0), 0);
-    if(err_is_fail(err)) {
-        USER_PANIC_ERR(err, "trace_control failed");
-    }
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_START, 0);
-#else // ENABLE_WEB_TRACING
-    printf("Tracing not enabled\n");
-#endif // ENABLE_WEB_TRACING
-
+    DEBUGPRINT ("nfs_mount calling.\n");
     my_nfs_client = nfs_mount(server, path, mount_callback, NULL);
+    DEBUGPRINT ("nfs_mount calling done.\n");
+
     assert(my_nfs_client != NULL);
     /* creating the empty cache */
     cache_table = NULL;
     create_404_page_cache();
+
 
     cache_timer = timer_create(MAX_STALENESS, true, cache_timeout_event,
             cache_table);
