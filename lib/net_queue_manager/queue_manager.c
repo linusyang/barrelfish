@@ -399,7 +399,7 @@ static void report_register_buffer_result(struct net_queue_manager_binding *cc,
             USER_PANIC("queue full, can go further\n");
             //return CONT_ERR_NO_MORE_SLOTS;
         }
-        event_dispatch(ws);
+        event_dispatch_debug(ws);
         ++passed_events;
     }
 
@@ -479,6 +479,31 @@ static errval_t wrapper_send_raw_xmit_done(struct q_entry e)
     }
 }
 
+static __attribute__((unused))  void
+handle_single_event_nonblock(struct waitset *ws)
+{
+    errval_t err;
+
+    while (1) {
+
+        do_pending_work_for_all();
+
+        err = event_dispatch_non_block(ws); // nonblocking for polling mode
+        if (err != LIB_ERR_NO_EVENT && err_is_fail(err)) {
+            ETHERSRV_DEBUG("Error in event_dispatch_non_block, returned %d\n",
+                        (unsigned int)err);
+            // There should be a serious panic and failure here
+            USER_PANIC_ERR(err, "event_dispatch_non_block failed in handle_single_event\n");
+            break;
+        } else {
+            // Successfully handled the event
+           return;
+        }
+    } // end while: infinite
+} // end function: handle_single_event_nonblock
+
+
+
 static errval_t send_raw_xmit_done(struct net_queue_manager_binding *b,
                                    uint64_t offset, uint64_t length,
                                    uint64_t flags)
@@ -502,17 +527,31 @@ static errval_t send_raw_xmit_done(struct net_queue_manager_binding *b,
 
         if (passed_events > 5) {
             cont_queue_show_queue(ccl->q);
-            printf("########### queue full, can't go further ############\n");
+            printf("## queue full, dropping raw_xmit_done notification\n");
             // USER_PANIC("queue full, can't go further\n");
             return CONT_ERR_NO_MORE_SLOTS;
         }
-        event_dispatch(ws);
+
+//        errval_t err = handle_single_event_nonblock(ws);
+        errval_t err = event_dispatch_debug(ws);
+        if (err_is_fail(err)) {
+            ETHERSRV_DEBUG("Error in event_dispatch, returned %d\n",
+                        (unsigned int)err);
+            // There should be a serious panic and failure here
+            USER_PANIC_ERR(err, "event_dispatch_non_block failed in handle_single_event\n");
+            break;
+        }
+
         ++passed_events;
     }
 
     enqueue_cont_q(ccl->q, &entry);
     return SYS_ERR_OK;
 } // end function: send_raw_xmit_done
+
+
+
+
 
 
 // *********** Interface: get_mac_address ****************
@@ -573,7 +612,7 @@ static void get_mac_addr_qm(struct net_queue_manager_binding *cc,
             USER_PANIC("queue full, can go further\n");
            // return CONT_ERR_NO_MORE_SLOTS;
         }
-        event_dispatch(ws);
+        event_dispatch_debug(ws);
         ++passed_events;
     }
 
@@ -712,7 +751,7 @@ bool copy_packet_to_user(struct buffer_descriptor *buffer,
 
         printf("[%s] Dropping packet as no space in userspace "
                 "2cp pkt buf [%" PRIu64 "]: "
-                "size[%"PRIu64"] used[%"PRIu64"], after [%"PRIu64"] sent"
+                "size[%zu] used[%zu], after [%"PRIu64"] sent"
                 " added [%"PRIu64"] \n", disp_name(),
                 buffer->buffer_id, buffer->rxq.buffer_state_size,
                 buffer->rxq.buffer_state_used, sent_packets, rx_added);
@@ -726,11 +765,12 @@ bool copy_packet_to_user(struct buffer_descriptor *buffer,
     if (!is_enough_space_in_queue(cl->q)) {
 
         printf("[%s] Dropping packet as app [%d] is not processing packets"
-                "fast enough.  Cont queue is almost full [%d]\n",
-                disp_name(), cl->cl_no, queue_free_slots(cl->q));
+                "fast enough.  Cont queue is almost full [%d], pkt count [%"PRIu64"]\n",
+                disp_name(), cl->cl_no, queue_free_slots(cl->q), sent_packets);
         if (cl->debug_state == 4) {
             ++cl->in_dropped_app_buf_full;
         }
+//        abort(); // FIXME: temparary halt to simplify debugging
         return false;
     }
 
@@ -760,7 +800,7 @@ bool copy_packet_to_user(struct buffer_descriptor *buffer,
 #if TRACE_ETHERSRV_MODE
     uint32_t pkt_location = (uint32_t) ((uintptr_t) data);
 
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NI_PKT_CPY, pkt_location);
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_NI_PKT_CPY, pkt_location);
 #endif // TRACE_ETHERSRV_MODE
 
     // Handle raw interface
@@ -793,9 +833,8 @@ static void raw_add_buffer(struct net_queue_manager_binding *cc,
     uint64_t paddr;
     void *vaddr, *opaque;
 
-    paddr = (uint64_t) (uintptr_t) buffer->pa + offset;
-    vaddr = (void*) ((uintptr_t) buffer->va + offset);
-
+    paddr = ((uint64_t)(uintptr_t) buffer->pa) + offset;
+    vaddr = (void*) ((uintptr_t) buffer->va + (size_t)offset);
 
     if (buffer->role == TX_BUFFER_ID) {
         // Make sure that there is opaque slot available (isfull)
@@ -816,9 +855,18 @@ static void raw_add_buffer(struct net_queue_manager_binding *cc,
         cl->driver_buff_list[cl->chunk_counter].va = vaddr;
         cl->driver_buff_list[cl->chunk_counter].pa = paddr;
         cl->driver_buff_list[cl->chunk_counter].len = length;
+        cl->driver_buff_list[cl->chunk_counter].opaque = opaque;
         cl->driver_buff_list[cl->chunk_counter].flags = flags;
         ++cl->chunk_counter;
         if (more == 0) {
+            // ETHERSRV_DEBUG
+//            printf("sending out packet\n");
+            if (cl->chunk_counter > 1) {
+                ETHERSRV_DEBUG
+                //printf
+                    ("%s:%s: handle=%p\n", disp_name(), __func__,
+                        opaque);
+            }
             err = ether_transmit_pbuf_list_ptr(cl->driver_buff_list, cl->chunk_counter, opaque);
             assert(err_is_ok(err));
             cl->chunk_counter = 0;
@@ -853,6 +901,9 @@ static void raw_add_buffer(struct net_queue_manager_binding *cc,
             assert(length == rx_buffer_size);
             rx_register_buffer_fn_ptr(paddr, vaddr, opaque);
         }
+
+        // FIXME: send a message back acking receiving of message.
+
     } // end else: RX_BUFFER_ID
 } // end function: raw_add_buffer
 

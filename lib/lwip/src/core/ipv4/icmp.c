@@ -50,6 +50,7 @@
 #include "lwip/def.h"
 #include "lwip/stats.h"
 #include "lwip/snmp.h"
+#include "lwip/init.h"
 
 #include <string.h>
 
@@ -107,12 +108,6 @@ void icmp_input(struct pbuf *p, struct netif *inp)
 
     ICMP_STATS_INC(icmp.recv);
     snmp_inc_icmpinmsgs();
-
-//  printf("ICMP packet came in\n");
-#if LWIP_TRACE_MODE
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_AI_P,
-                (uint32_t) ((uint64_t) p));
-#endif // LWIP_TRACE_MODE
 
     iphdr = p->payload;
     hlen = IPH_HL(iphdr) * 4;
@@ -237,8 +232,11 @@ void icmp_input(struct pbuf *p, struct netif *inp)
             IPH_TTL_SET(iphdr, ICMP_TTL);
             IPH_CHKSUM_SET(iphdr, 0);
 #if CHECKSUM_GEN_IP
-            p->nicflags |= NETIF_TXFLAG_IPCHECKSUM;
-            //IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, IP_HLEN));
+            if (is_hw_feature_enabled(IPv4_CHECKSUM_HW)) {
+                p->nicflags |= NETIF_TXFLAG_IPCHECKSUM;
+            } else {
+                IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, IP_HLEN));
+            }
 #endif                          /* CHECKSUM_GEN_IP */
 
             ICMP_STATS_INC(icmp.xmit);
@@ -257,11 +255,6 @@ void icmp_input(struct pbuf *p, struct netif *inp)
                 if (icmp_notifier != NULL) {
                     icmp_notifier(p);
                 }
-#if LWIP_TRACE_MODE
-                trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_AO_C,
-                            (uint32_t) ((uint64_t) p));
-#endif // LWIP_TRACE_MODE
-
                 ret = ip_output_if(p, &(iphdr->src), IP_HDRINCL,
                                    ICMP_TTL, 0, IP_PROTO_ICMP, inp);
                 if (ret != ERR_OK) {
