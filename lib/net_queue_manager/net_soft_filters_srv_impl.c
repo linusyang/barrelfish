@@ -34,6 +34,10 @@
 
 #define RX_RING_MAXMEM 512*1024
 
+#if CONFIG_TRACE && NETWORK_STACK_TRACE
+#define TRACE_ONLY_SUB_NNET 1
+#endif // CONFIG_TRACE && NETWORK_STACK_TRACE
+
 /* This is client_closure for filter management */
 struct client_closure_FM {
     struct net_soft_filters_binding *app_connection;       /* FIXME: Do I need this? */
@@ -1067,6 +1071,7 @@ static bool handle_application_packet(void *packet, size_t len, uint64_t flags)
         return false;
     }
 
+
 #if TRACE_ONLY_SUB_NNET
     trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVAPPFDONE,
                 (uint32_t) ((uintptr_t) packet));
@@ -1096,7 +1101,7 @@ static bool handle_application_packet(void *packet, size_t len, uint64_t flags)
         total_processing_time = 0;
         total_rx_datasize = 0;
         g_cl = cl;
-        trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_START, 0);
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_START, 0);
     }
 
     if (filter->paused) {
@@ -1273,7 +1278,6 @@ out:
 #endif
 
 
-
 void sf_process_received_packet(void *opaque, size_t pkt_len, bool is_last,
         uint64_t flags)
 {
@@ -1309,7 +1313,6 @@ void sf_process_received_packet(void *opaque, size_t pkt_len, bool is_last,
     // check for fragmented packet
     if (handle_fragmented_packet(pkt_data, pkt_len, flags)) {
         ETHERSRV_DEBUG("fragmented packet..\n");
-//        printf("fragmented packet..\n");
         goto out;
     }
 
@@ -1320,18 +1323,22 @@ void sf_process_received_packet(void *opaque, size_t pkt_len, bool is_last,
 
     // check for application specific packet
     if (handle_application_packet(pkt_data, pkt_len, flags)) {
-        ETHERSRV_DEBUG("application specific packet.. len %"PRIu64"\n", pkt_len);
+        ETHERSRV_DEBUG
+        //printf
+            ("application specific packet.. len %"PRIu64"\n", pkt_len);
         goto out;
     }
 
     // check for ARP packet
      if (handle_arp_packet(pkt_data, pkt_len, flags)) {
-        ETHERSRV_DEBUG("ARP packet..\n");
+        ETHERSRV_DEBUG
+            ("ARP packet..\n");
         goto out;
     }
 
     // last resort: send packet to netd
 
+    ETHERSRV_DEBUG("orphan packet, goes to netd..\n");
     handle_netd_packet(pkt_data, pkt_len, flags);
 
 out:
