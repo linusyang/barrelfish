@@ -34,6 +34,10 @@
 
 #define RX_RING_MAXMEM 512*1024
 
+#if CONFIG_TRACE && NETWORK_STACK_TRACE
+#define TRACE_ONLY_SUB_NNET 1
+#endif // CONFIG_TRACE && NETWORK_STACK_TRACE
+
 /* This is client_closure for filter management */
 struct client_closure_FM {
     struct net_soft_filters_binding *app_connection;       /* FIXME: Do I need this? */
@@ -61,6 +65,9 @@ static bool copy_bufs_to_user(struct buffer_descriptor *buffer,
                               struct driver_rx_buffer *buf,
                               size_t count,
                               uint64_t flags);
+
+
+void* sf_rx_ring_buffer(void *opaque);
 
 // Initialize interface for soft_filters channel
 static struct net_soft_filters_rx_vtbl rx_net_soft_filters_vtbl = {
@@ -1108,6 +1115,7 @@ static bool handle_application_packet(struct driver_rx_buffer *buf,
         return false;
     }
 
+
 #if TRACE_ONLY_SUB_NNET
     trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVAPPFDONE,
                 (uint32_t) ((uintptr_t) packet));
@@ -1137,7 +1145,7 @@ static bool handle_application_packet(struct driver_rx_buffer *buf,
         total_processing_time = 0;
         total_rx_datasize = 0;
         g_cl = cl;
-        trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_START, 0);
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_START, 0);
     }
 
     if (filter->paused) {
@@ -1318,19 +1326,17 @@ out:
 #endif
 
 
-
 void sf_process_received_packet(struct driver_rx_buffer *buf, size_t count,
                                 uint64_t flags)
 {
     size_t i;
 
 #if TRACE_ETHERSRV_MODE
-    uint32_t pkt_location = (uint32_t) ((uintptr_t) pkt_data);
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NI_A, pkt_location);
+    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NI_A, 0);
 #endif // TRACE_ETHERSRV_MODE
 #if TRACE_ONLY_SUB_NNET
         trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVSEE,
-                    (uint32_t) ((uintptr_t) pkt_data));
+                    0);
 #endif // TRACE_ONLY_SUB_NNET
 
 #if 0  // LOOPBACK
@@ -1347,30 +1353,33 @@ void sf_process_received_packet(struct driver_rx_buffer *buf, size_t count,
     // check for fragmented packet TODO
     if (handle_fragmented_packet(buf, count, flags)) {
         ETHERSRV_DEBUG("fragmented packet..\n");
-//        printf("fragmented packet..\n");
         goto out;
     }
 #endif
 
 #if TRACE_ONLY_SUB_NNET
         trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_RXESVFRGDONE,
-                    (uint32_t) ((uintptr_t) pkt_data));
+                    0);
 #endif // TRACE_ONLY_SUB_NNET
 
     // check for application specific packet
     if (handle_application_packet(buf, count, flags)) {
-        ETHERSRV_DEBUG("application specific packet.. len %"PRIu64"\n", pkt_len);
+        ETHERSRV_DEBUG
+        //printf
+            ("application specific packet.. \n");
         goto out;
     }
 
     // check for ARP packet
      if (handle_arp_packet(buf, count, flags)) {
-        ETHERSRV_DEBUG("ARP packet..\n");
+        ETHERSRV_DEBUG
+            ("ARP packet..\n");
         goto out;
     }
 
     // last resort: send packet to netd
 
+    ETHERSRV_DEBUG("orphan packet, goes to netd..\n");
     handle_netd_packet(buf, count, flags);
 
 out:

@@ -9,6 +9,7 @@
 
 #include <lwip/sys.h>
 #include <barrelfish/barrelfish.h>
+#include <barrelfish/deferred.h>
 
 /*
  * TODO:
@@ -156,6 +157,7 @@ u32_t sys_jiffies(void)
 {
     /* since power up. */
     assert(!"NYI");
+    return 0;
 }
 
 /* Mailbox functions. */

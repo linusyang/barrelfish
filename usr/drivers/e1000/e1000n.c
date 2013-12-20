@@ -52,10 +52,6 @@
 #define TRACE_ETHERSRV_MODE 1
 #endif // CONFIG_TRACE && NETWORK_STACK_TRACE
 
-#if CONFIG_TRACE && NETWORK_STACK_BENCHMARK
-#define TRACE_N_BM 1
-#endif // CONFIG_TRACE && NETWORK_STACK_BENCHMARK
-
 #define MAX_ALLOWED_PKT_PER_ITERATION   (0xff)  // working value
 /* Transmit and receive buffers must be multiples of 8 */
 #define DRIVER_RECEIVE_BUFFERS      (1024 * 8)
@@ -116,6 +112,7 @@ static uint8_t mac_address[MAC_ADDRESS_LEN]; /* buffers the card's MAC address u
  *****************************************************************/
 static bool user_mac_address; /* True if the user specified the MAC address */
 static bool use_interrupt = true; /* don't use card polling mode */
+//static bool use_interrupt = false; /* don't use card polling mode */
 static bool use_force = false; /* don't attempt to find card force load */
 
 /*****************************************************************
@@ -306,8 +303,8 @@ static bool handle_free_TX_slot_fn(void)
 
     /* Actual place where packet is sent.  Adding trace_event here */
 #if TRACE_ETHERSRV_MODE
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NO_S,
-                (uint32_t)client_data);
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_NO_S,
+                (uint32_t)ether_transmit_index);
 #endif
 
     return 0;
@@ -333,7 +330,7 @@ static errval_t transmit_pbuf_list_fn(struct driver_buffer *buffers,
     }
 
     if (count > 1) {
-        printf("Sending %zx chunks\n", count);
+        E1000_DEBUG("Sending %zx chunks\n", count);
     }
     for (int i = 0; i < count; i++) {
         errval_t r = transmit_pbuf(buffers[i].pa, buffers[i].len,
@@ -377,8 +374,8 @@ static bool handle_next_received_packet(void)
             ) {
 
 //      valid packet received
-//      E1000_DEBUG ("Potential packet receive [%"PRIu32"]!\n",
-//            receive_bufptr);
+      E1000_DEBUG ("Potential packet receive [%"PRIu32"]!\n",
+            receive_bufptr);
         new_packet = true;
         len = rxd->rx_read_format.info.length;
         total_rx_datasize += len;
@@ -421,12 +418,12 @@ static void print_rx_bm_stats(bool stop_trace)
 
     cts = rdtsc();
 
-#if TRACE_N_BM
+#if TRACE_ETHERSRV_MODE
     if (stop_trace) {
         /* stopping the tracing */
-        trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_STOP, 0);
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_STOP, 0);
     }
-#endif
+#endif // TRACE_ETHERSRV_MODE
 
     running_time = cts - g_cl->start_ts;
     E1000_PRINT("D:I:%u: RX speed = [%"PRIu64"] packets "
@@ -457,10 +454,10 @@ static uint64_t handle_multiple_packets(uint64_t upper_limit)
     while (handle_next_received_packet()) {
         ++total_rx_p_count;
 
-#if TRACE_N_BM
-        trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_DRV_SEE,
+#if TRACE_ETHERSRV_MODE
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_DRV_SEE,
                     total_rx_p_count);
-#endif
+#endif // TRACE_ETHERSRV_MODE
 
         if (total_rx_datasize > PACKET_SIZE_LIMIT) {
             if (!benchmark_complete) {
@@ -493,7 +490,7 @@ static void polling_loop(void)
 {
     uint64_t poll_count = 0;
     uint64_t ts;
-    uint8_t jobless_iterations = 0;
+//    uint8_t jobless_iterations = 0;
     errval_t err;
     bool no_work = true;
 
@@ -502,12 +499,18 @@ static void polling_loop(void)
         ++poll_count;
 
         ts = rdtsc();
-//        do_pending_work_for_all();
+        do_pending_work_for_all();
         netbench_record_event_simple(bm, RE_PENDING_WORK, ts);
 
         struct waitset *ws = get_default_waitset();
-//        err = event_dispatch(ws); // blocking // doesn't work correctly
-        err = event_dispatch_non_block(ws); // nonblocking
+
+        if (use_interrupt) {
+            err = event_dispatch_debug(ws); // blocking // doesn't work correctly
+        } else {
+            err = event_dispatch_non_block(ws); // nonblocking for polling mode
+        }
+//        err = event_dispatch_non_block(ws); // nonblocking for polling mode
+//        err = event_dispatch(ws); // nonblocking for polling mode
         if (err != LIB_ERR_NO_EVENT && err_is_fail(err)) {
             E1000_DEBUG("Error in event_dispatch_non_block, returned %d\n",
                         (unsigned int)err);
@@ -516,15 +519,24 @@ static void polling_loop(void)
             no_work = false;
         }
 
-#if TRACE_N_BM
-        trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_DRV_POLL, poll_count);
-#endif
+#if TRACE_ETHERSRV_MODE
+        trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_DRV_POLL, poll_count);
+#endif // TRACE_ETHERSRV_MODE
 
         if (handle_multiple_packets(MAX_ALLOWED_PKT_PER_ITERATION) > 0) {
             no_work = false;
         }
 
-        if (no_work) {
+/*
+        err = event_dispatch_debug(ws); // blocking // doesn't work correctly
+        if (err_is_fail(err)) {
+            E1000_DEBUG("Error in event_dispatch_non_block, returned %d\n",
+                        (unsigned int)err);
+            break;
+        }
+*/
+
+ /*       if (no_work) {
             ++jobless_iterations;
             if (jobless_iterations == 10) {
                 if (use_interrupt) {
@@ -533,7 +545,8 @@ static void polling_loop(void)
                 }
             }
         }
-    }
+*/
+    } // end while
 }
 
 /*****************************************************************
@@ -627,6 +640,8 @@ static void e1000_init_fn(struct device_mem *bar_info, int nr_allocated_bars)
 
     setup_internal_memory();
 
+
+
     ethersrv_init(global_service_name, assumed_queue_id, get_mac_address_fn,
 		  NULL,
                   transmit_pbuf_list_fn,
@@ -635,6 +650,11 @@ static void e1000_init_fn(struct device_mem *bar_info, int nr_allocated_bars)
                   receive_buffer_size,
                   rx_register_buffer_fn,
                   rx_find_free_slot_count_fn);
+
+
+#if TRACE_ETHERSRV_MODE
+    set_cond_termination(trace_conditional_termination);
+#endif
 }
 
 
@@ -648,15 +668,12 @@ static void e1000_interrupt_handler_fn(void *arg)
     e1000_intreg_t icr = e1000_icr_rd(e1000_device.device);
 
 #if TRACE_ETHERSRV_MODE
-    trace_event(TRACE_SUBSYS_NET, TRACE_EVENT_NET_NI_I, 0);
+    trace_event(TRACE_SUBSYS_NNET, TRACE_EVENT_NNET_NI_I, interrupt_counter);
 #endif
 
+//    printf("#### interrupt handler called: %"PRIu64"\n", interrupt_counter);
     ++interrupt_counter;
 
-#if TRACE_N_BM
-    trace_event(TRACE_SUBSYS_BNET, TRACE_EVENT_BNET_DRV_INT,
-                interrupt_counter);
-#endif
     if (e1000_intreg_lsc_extract(icr) != 0) {
         if (e1000_check_link_up(&e1000_device)) {
             e1000_auto_negotiate_link(&e1000_device);
@@ -669,6 +686,7 @@ static void e1000_interrupt_handler_fn(void *arg)
         return;
     }
 
+    E1000_DEBUG("e1000 interrupt came in\n");
     handle_multiple_packets(MAX_ALLOWED_PKT_PER_ITERATION);
 }
 
@@ -876,6 +894,17 @@ int main(int argc, char **argv)
         E1000_DEBUG("Setting service name to %s\n", service_name);
     }
 
+
+    // There is a bug which breaks the interrupt handling if driver runs
+    // on core zero.  So, trying to avoid that situation
+    if(use_interrupt) {
+        if(disp_get_core_id() == 0) {
+            USER_PANIC("ERROR: Can't run [%s] on core-0 with interrupt enabled, please choose different core\n",
+                    disp_name());
+            abort();
+        }
+    }
+
     E1000_DEBUG("Starting standalone driver.\n");
 
     /*
@@ -930,14 +959,17 @@ int main(int argc, char **argv)
     err = pci_client_connect();
     assert(err_is_ok(err));
 
-    if (use_interrupt)
+    if (use_interrupt) {
+
         err = pci_register_driver_irq(e1000_init_fn, class, subclass, program_interface,
                                       vendor, deviceid, bus, device, function,
                                       e1000_interrupt_handler_fn, NULL);
-
-    else
+        printf("########### Driver with interrupts ###########\n");
+    } else {
         err = pci_register_driver_noirq(e1000_init_fn, class, subclass, program_interface,
                                         vendor, deviceid, bus, device, function);
+        printf("########### Driver without interrupts ###########\n");
+    }
 
     if (err_is_fail(err)) {
         E1000_PRINT_ERROR("Error: %u, pci_register_driver failed\n", (unsigned int)err);
@@ -951,6 +983,9 @@ int main(int argc, char **argv)
     e1000_print_link_status(&e1000_device);
 
     E1000_DEBUG("#### starting polling.\n");
+    // FIXME: hack to force the driver in polling mode, as interrupts are
+    // not reliably working
+    use_interrupt = false;
     polling_loop();
 
     return 1;
