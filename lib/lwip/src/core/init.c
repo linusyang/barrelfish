@@ -274,9 +274,9 @@ static void remaining_lwip_initialization(char *card_name, uint64_t queueid)
     printf("#### Networking with small amount of memory #####\n");
 #endif // CONFIG_QEMU_NETWORK
     printf("#### [%u:%"PRIuDOMAINID":%s] [%s] [%d] MEM_SIZE[%d], "
-            "PBUF_POOL_SIZE[%d], RECEIVE_BUFFERS[%d] qid[%"PRIu64"]####\n",
+            "PBUF_POOL_SIZE[%d], MEMP_MAX[%d],  RECEIVE_BUFFERS[%d] qid[%"PRIu64"]####\n",
        disp_get_core_id(), disp_get_domain_id(), disp_name(),
-       MEM_CONF_LOC, is_ctl, MEM_SIZE, PBUF_POOL_SIZE,
+       MEM_CONF_LOC, is_ctl, MEM_SIZE, PBUF_POOL_SIZE, MEMP_MAX,
        RECEIVE_BUFFERS, queueid);
 
     memp_init();                // 0'st buffer
@@ -364,8 +364,8 @@ static void call_tcp_tmr(void)
 bool lwip_init_ex(const char *card_name, uint64_t queueid,
                   struct waitset *opt_waitset, struct thread_mutex *opt_mutex)
 {
+    printf("lwip_init_ex: starting......................\n");
     DEBUGPRINTPS("LWIP_other: Inside lwip_init\n");
-    printf("LWIP: in lwip_init\n");
     static bool run_once;
 
     if (run_once) {
@@ -447,6 +447,7 @@ bool lwip_init_ex(const char *card_name, uint64_t queueid,
     extern bool lwip_init_done;
     lwip_init_done = true;
 
+    printf("lwip_init_ex: done......................\n");
     return true;
 }
 
@@ -633,4 +634,16 @@ void lwip_print_interesting_stats(void)
 */
 
 }
+
+
+// checks and tells if given hardware feature is enabled or not.
+// NOTE: This code is kept in this file because the information about the
+// card name is available here. But we should move into separate file
+// in future.
+bool is_hw_feature_enabled(int hw_feature)
+{
+    // FIXME: based on the cardname and configuration, hardware feature's
+    // activeness should be decided
+    return false;
+} // end function: is_hw_feature_enabled
 

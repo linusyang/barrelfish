@@ -109,6 +109,7 @@ struct driver_buffer {
     uint64_t pa;
     void    *va;
     size_t   len;
+    void    *opaque;
     uint64_t flags;
 };
 

@@ -55,6 +55,7 @@
 #include "lwip/dhcp.h"
 #include "lwip/stats.h"
 #include "arch/perf.h"
+#include "lwip/init.h"
 
 #include <string.h>
 
@@ -286,6 +287,7 @@ err_t ip_input(struct pbuf * p, struct netif * inp)
     /* Trim pbuf. This should have been done at the netif layer,
      * but we'll do it anyway just to be sure that its done. */
     pbuf_realloc(p, iphdr_len);
+
 
     /* match packet against an interface, i.e. is this packet for us? */
 #if LWIP_IGMP
@@ -603,7 +605,6 @@ err_t ip_output_if_opt(struct pbuf * p, struct ip_addr * src,
 
             IP_STATS_INC(ip.err);
             snmp_inc_ipoutdiscards();
-            printf("netif->output() %d\n", __LINE__);
             return ERR_BUF;
         }
 
@@ -630,8 +631,11 @@ err_t ip_output_if_opt(struct pbuf * p, struct ip_addr * src,
 
         IPH_CHKSUM_SET(iphdr, 0);
 #if CHECKSUM_GEN_IP
-        p->nicflags |= NETIF_TXFLAG_IPCHECKSUM;
-        //IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, ip_hlen));
+        if (is_hw_feature_enabled(IPv4_CHECKSUM_HW)) {
+            p->nicflags |= NETIF_TXFLAG_IPCHECKSUM;
+        } else {
+            IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, ip_hlen));
+        }
 #endif
     } else {
         /* IP header already included in p */

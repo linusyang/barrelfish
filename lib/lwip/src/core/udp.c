@@ -62,6 +62,7 @@
 #include "lwip/snmp.h"
 #include "arch/perf.h"
 #include "lwip/dhcp.h"
+#include "lwip/init.h"
 
 #include <string.h>
 #include <idc_barrelfish.h>
@@ -446,7 +447,6 @@ udp_sendto_if(struct udp_pcb * pcb, struct pbuf * p,
     /* not enough space to add an UDP header to first pbuf in given p chain? */
     if (pbuf_header(p, UDP_HLEN)) {
         /* allocate header in a separate new pbuf */
-        printf("Not enough room in buffer for header!!\n");
         q = pbuf_alloc(PBUF_IP, UDP_HLEN, PBUF_RAM);
         /* new header pbuf could not be allocated? */
         if (q == NULL) {
@@ -556,12 +556,17 @@ udp_sendto_if(struct udp_pcb * pcb, struct pbuf * p,
         udphdr->len = htons(q->tot_len);
         /* calculate checksum */
 #if CHECKSUM_GEN_UDP
-        if ((pcb->flags & UDP_FLAGS_NOCHKSUM) == 0) {
-            q->nicflags |= NETIF_TXFLAG_UDPCHECKSUM;
-            // Only calculate checksum over pseudo header
-            udphdr->chksum =
-              ~inet_chksum_pseudo_partial(q, src_ip, dst_ip, IP_PROTO_UDP,
-                                 q->tot_len, 0) & 0xffff;
+        if (is_hw_feature_enabled(UDP_IPV4_CHECKSUM_HW)) {
+            if ((pcb->flags & UDP_FLAGS_NOCHKSUM) == 0) {
+                q->nicflags |= NETIF_TXFLAG_UDPCHECKSUM;
+                // Only calculate checksum over pseudo header
+                udphdr->chksum =
+                    ~inet_chksum_pseudo_partial(q, src_ip, dst_ip, IP_PROTO_UDP,
+                            q->tot_len, 0) & 0xffff;
+            } else {
+                udphdr->chksum = inet_chksum_pseudo(q, src_ip, dst_ip,
+                        IP_PROTO_UDP, q->tot_len);
+            }
             /* chksum zero must become 0xffff, as zero means 'no checksum' */
             if (udphdr->chksum == 0x0000)
                 udphdr->chksum = 0xffff;
@@ -625,7 +630,6 @@ err_t udp_bind(struct udp_pcb * pcb, struct ip_addr * ipaddr, u16_t port)
     LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | 3, ("udp_bind: starting %u\n",
                                                  port));
 
-    printf("udp_bind:called............................ \n");
     /* Following modifications are part of DEMUX : PS */
     if (port == 0) {
         err = idc_udp_new_port(&port);
@@ -718,7 +722,6 @@ err_t udp_connect(struct udp_pcb * pcb, struct ip_addr * ipaddr, u16_t port)
 {
     struct udp_pcb *ipcb;
 
-//    printf("udp_connect:called............................ \n");
     if (pcb->local_port == 0) {
         err_t err = udp_bind(pcb, &pcb->local_ip, pcb->local_port);
 
