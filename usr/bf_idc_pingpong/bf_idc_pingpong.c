@@ -9,27 +9,27 @@ static volatile int keep_loop = 1;
 void syn_handler(struct idc_pingpong_binding *b){
 	debug_printf("received syn\n");
 	errval_t err = b->tx_vtbl.syn_ack(b, NOP_CONT);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err, "send syn-ack failed");
-    }
+	if(err_is_fail(err)){
+		DEBUG_ERR(err, "send syn-ack failed");
+	}
 }
 
 void syn_ack_handler(struct idc_pingpong_binding *b){
 	debug_printf("received syn-ack\n");
-    errval_t err = b->tx_vtbl.ack(b, NOP_CONT);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err, "send ack failed");
-    }
+	errval_t err = b->tx_vtbl.ack(b, NOP_CONT);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err, "send ack failed");
+	}
 
-    /* Client finished handshaking */
-    keep_loop = 0;
+	/* Client finished handshaking */
+	keep_loop = 0;
 }
 
 void ack_handler(struct idc_pingpong_binding *b){
 	debug_printf("received ack\n");
 
-    /* Server finished handshaking */
-    keep_loop = 0;
+	/* Server finished handshaking */
+	keep_loop = 0;
 }
 
 /**
@@ -37,17 +37,17 @@ void ack_handler(struct idc_pingpong_binding *b){
  */
 
 static struct idc_pingpong_rx_vtbl idc_pingpong_rx_vtbl = {
-    .syn     = syn_handler,
-    .syn_ack = syn_ack_handler,
-    .ack     = ack_handler
+	.syn     = syn_handler,
+	.syn_ack = syn_ack_handler,
+	.ack     = ack_handler
 };
 
 static void run_client(struct idc_pingpong_binding *b){
-    debug_printf("client sent syn\n");
-    errval_t err = b->tx_vtbl.syn(b, NOP_CONT);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err, "failed to start client");
-    }
+	debug_printf("client sent syn\n");
+	errval_t err = b->tx_vtbl.syn(b, NOP_CONT);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err, "failed to start client");
+	}
 }
 
 static void bind_cb(void *st, errval_t err, struct idc_pingpong_binding *b){
@@ -56,10 +56,10 @@ static void bind_cb(void *st, errval_t err, struct idc_pingpong_binding *b){
 	}
 	debug_printf("client bound!\n");
 
-    // copy my message receive handler vtable to the binding
-    b->rx_vtbl = idc_pingpong_rx_vtbl;
+	// copy my message receive handler vtable to the binding
+	b->rx_vtbl = idc_pingpong_rx_vtbl;
 
-    run_client(b);
+	run_client(b);
 }
 
 static void start_client(void){
@@ -111,9 +111,9 @@ static void start_server(void){
 	errval_t err;
 
 	err = idc_pingpong_export(NULL, export_cb, connect_cb, get_default_waitset(), IDC_EXPORT_FLAGS_DEFAULT);
-    if(err_is_fail(err)){
-    	USER_PANIC_ERR(err, "export failed");
-    }
+	if(err_is_fail(err)){
+		USER_PANIC_ERR(err, "export failed");
+	}
 }
 
 /**
@@ -123,29 +123,29 @@ static void start_server(void){
 int main(int argc, char* argv[]){
 	debug_printf("Core ID: %d\n", disp_get_core_id());
 
-    if(disp_get_core_id() == 0){
-    	spawn_program(1, "/x86_64/sbin/idc_pingpong", argv, NULL, SPAWN_NEW_DOMAIN, NULL);
+	if(disp_get_core_id() == 0){
+		spawn_program(1, "/x86_64/sbin/idc_pingpong", argv, NULL, SPAWN_NEW_DOMAIN, NULL);
 
-        start_server();
-    }
-    else start_client();
+		start_server();
+	}
+	else start_client();
 
-    /* The dispatch loop */
-    errval_t err;
-    struct waitset *ws = get_default_waitset();
-    while (keep_loop){
-        err = event_dispatch(ws); /* get and handle next event */
-        if(err_is_fail(err)){
-            DEBUG_ERR(err, "dispatch error");
-            break;
-        }
-    }
+	/* The dispatch loop */
+	errval_t err;
+	struct waitset *ws = get_default_waitset();
+	while (keep_loop){
+		err = event_dispatch(ws); /* get and handle next event */
+		if(err_is_fail(err)){
+			DEBUG_ERR(err, "dispatch error");
+			break;
+		}
+	}
 
-    /* Exiting */
-    if(disp_get_core_id() == 0)
-        debug_printf("server exit\n");
-    else
-        debug_printf("client exit\n");
+	/* Exiting */
+	if(disp_get_core_id() == 0)
+		debug_printf("server exit\n");
+	else
+		debug_printf("client exit\n");
 
-    return 0;
+	return 0;
 }
