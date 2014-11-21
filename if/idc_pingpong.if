@@ -1,0 +1,5 @@
+interface idc_pingpong "Inter-Dispatcher Pingpong Test Messaging Interface"{
+    message syn();
+    message syn_ack();
+    message ack();
+};

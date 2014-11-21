@@ -84,7 +84,8 @@
                "arrakis",
                "e10k_vf",
                "flounderbootstrap",
-               "empty"
+               "empty",
+               "idc_pingpong"
            ],
              arch <- allArchitectures
 ] ++

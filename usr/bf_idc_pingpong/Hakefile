@@ -1,0 +1,11 @@
+[
+    build application {
+        target = "idc_pingpong",
+        cFiles = [ "bf_idc_pingpong.c" ],
+        mackerelDevices = [ "rck" ],
+        addLibraries = libDeps[ "barrelfish" ],
+        flounderDefs = [ "idc_pingpong" ],
+        flounderBindings = [ "idc_pingpong" ],
+        addCFlags = [ "-DDEBUG", "-nostdinc", "-Wno-error" ]
+    }
+]
