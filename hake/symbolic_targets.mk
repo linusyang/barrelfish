@@ -219,6 +219,7 @@ MODULES_x86_64= \
 	sbin/block_server_client \
 	sbin/bs_user \
 	sbin/bulk_shm \
+	sbin/idc_pingpong \
 
 MODULES_k1om= \
     sbin/weever \
