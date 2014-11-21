@@ -1,66 +1,65 @@
-#include "stdio.h"
-#include "stdbool.h"                 // FOR BOOL
-#include "errors/errno.h"            // FOR ERRVAL_T
+#include <stdio.h>
 #include <barrelfish/barrelfish.h>
-#include "arch/x86_32/barrelfish_kpi/eflags_arch.h"
-#include "arch/x86_32/barrelfish_kpi/paging_arch.h"
-#include "barrelfish_kpi/syscalls.h" // FOR STRUCT SYSRET
-#include "barrelfish/capabilities.h"
-#include "if/idc_pingpong_defs.h"
-#include "barrelfish/domain.h"
-#include "barrelfish/spawn_client.h"
-#include "barrelfish/waitset.h"
-#include "barrelfish/nameservice_client.h"
-#include "rck_dev.h"
+#include <barrelfish/nameservice_client.h>
+#include <barrelfish/spawn_client.h>
+#include <if/idc_pingpong_defs.h>
 
-struct idc_pingpong_binding* binding;
-
-int FLAG_connect = 0;
-int FLAG_ack     = 0;
+static volatile int keep_loop = 1;
 
 void syn_handler(struct idc_pingpong_binding *b){
-	debug_printf("arrived at syn\n");
-
-	b->tx_vtbl.syn_ack(b, NOP_CONT);
-
-	do{
-		debug_printf("wait ack\n");
-
-		event_dispatch(get_default_waitset());
-	}while(!FLAG_ack);
+	debug_printf("received syn\n");
+	errval_t err = b->tx_vtbl.syn_ack(b, NOP_CONT);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err, "send syn-ack failed");
+    }
 }
 
 void syn_ack_handler(struct idc_pingpong_binding *b){
-	debug_printf("arrived at syn_ack\n");
+	debug_printf("received syn-ack\n");
+    errval_t err = b->tx_vtbl.ack(b, NOP_CONT);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err, "send ack failed");
+    }
+
+    /* Client finished handshaking */
+    keep_loop = 0;
 }
 
 void ack_handler(struct idc_pingpong_binding *b){
-	debug_printf("arrived at ack\n");
+	debug_printf("received ack\n");
 
-	FLAG_ack = 1;
+    /* Server finished handshaking */
+    keep_loop = 0;
 }
 
 /**
  * START OF MESSAGING EXPORT/BINDING SERVICE
  */
 
-struct idc_pingpong_rx_vtbl idc_pingpong_rx_vtbl = {
+static struct idc_pingpong_rx_vtbl idc_pingpong_rx_vtbl = {
     .syn     = syn_handler,
     .syn_ack = syn_ack_handler,
     .ack     = ack_handler
 };
 
+static void run_client(struct idc_pingpong_binding *b){
+    debug_printf("client sent syn\n");
+    errval_t err = b->tx_vtbl.syn(b, NOP_CONT);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err, "failed to start client");
+    }
+}
+
 static void bind_cb(void *st, errval_t err, struct idc_pingpong_binding *b){
 	if(err_is_fail(err)){
 		USER_PANIC_ERR(err, "bind failed");
 	}
-
 	debug_printf("client bound!\n");
 
-	// copy my message receive handler vtable to the binding
-	b->rx_vtbl = idc_pingpong_rx_vtbl;
+    // copy my message receive handler vtable to the binding
+    b->rx_vtbl = idc_pingpong_rx_vtbl;
 
-	binding = b;
+    run_client(b);
 }
 
 static void start_client(void){
@@ -78,9 +77,6 @@ static void start_client(void){
 	if(err_is_fail(err)){
 		USER_PANIC_ERR(err, "bind failed");
 	}
-
-	while(binding == NULL)
-		event_dispatch(get_default_waitset());
 }
 
 /* ------------------------------ SERVER ------------------------------ */
@@ -107,8 +103,6 @@ static errval_t connect_cb(void *st, struct idc_pingpong_binding *b){
 	// copy my message receive handler vtable to the binding
 	b->rx_vtbl = idc_pingpong_rx_vtbl;
 
-	FLAG_connect = 1;
-
 	// accept the connection (we could return an error to refuse it)
 	return SYS_ERR_OK;
 }
@@ -120,10 +114,6 @@ static void start_server(void){
     if(err_is_fail(err)){
     	USER_PANIC_ERR(err, "export failed");
     }
-
-    do{
-    	event_dispatch(get_default_waitset());
-    }while(!FLAG_connect);
 }
 
 /**
@@ -140,14 +130,22 @@ int main(int argc, char* argv[]){
     }
     else start_client();
 
-    if(disp_get_core_id() == 1){
-    	binding->tx_vtbl.syn(binding, NOP_CONT);
-    	event_dispatch(get_default_waitset());
-    	binding->tx_vtbl.ack(binding, NOP_CONT);
-
-    	debug_printf("sent ack\n");
+    /* The dispatch loop */
+    errval_t err;
+    struct waitset *ws = get_default_waitset();
+    while (keep_loop){
+        err = event_dispatch(ws); /* get and handle next event */
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "dispatch error");
+            break;
+        }
     }
-    else event_dispatch(get_default_waitset());
+
+    /* Exiting */
+    if(disp_get_core_id() == 0)
+        debug_printf("server exit\n");
+    else
+        debug_printf("client exit\n");
 
     return 0;
 }
